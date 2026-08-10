@@ -2985,3 +2985,24 @@ body:not(.dark-mode) .plan-row .pill { border: 0; box-shadow: none; }
 .planner-v2-status { color: var(--muted); font-size: .82rem; font-weight: 800; }
 @media (max-width: 800px) { .planner-v2-form { grid-template-columns: 1fr 1fr; } .planner-v2-topic { grid-column: span 2; } .planner-v2-row { grid-template-columns: 1fr; } .planner-v2-row-actions { justify-content: flex-start; } }
 @media (max-width: 500px) { .planner-v2-form { grid-template-columns: 1fr; } .planner-v2-topic { grid-column: auto; } .planner-v2-datebar { align-items: stretch; flex-direction: column; } }
+
+/* Timetable Planner v3 additions */
+.planner-v2-quick { display: flex; gap: 8px; }
+.planner-v2-error {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 7px;
+  background: var(--danger-soft);
+  color: var(--rose);
+  font-size: 0.85rem;
+}
+.planner-v2-day { display: grid; gap: 10px; margin-bottom: 18px; }
+.planner-v2-day h3 {
+  margin: 0;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.planner-v2-row.done { opacity: 0.72; }
