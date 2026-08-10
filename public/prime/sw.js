@@ -1,19 +1,14 @@
-const CACHE_NAME = "project-prime-invictus-ignis-v48";
+const CACHE_NAME = "project-prime-invictus-ignis-v49";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=47",
-  "./app.js?v=47",
-  "./manifest.webmanifest",
-  "./assets/logo.png",
-  "./assets/icon-192.png",
-  "./assets/icon-512.png"
+  "./manifest.webmanifest"
 ];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(APP_SHELL))
+      .then((cache) => Promise.all(APP_SHELL.map((url) => cache.add(url).catch(() => null))))
       .then(() => self.skipWaiting())
   );
 });
