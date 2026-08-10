@@ -2454,6 +2454,18 @@ els.goalList.addEventListener("click", (event) => {
   render();
 });
 
+document.querySelector("#addGoalBtn")?.addEventListener("click", () => {
+  const input = document.querySelector("#goalInput");
+  input?.focus();
+  input?.scrollIntoView({ behavior: "smooth", block: "center" });
+});
+
+document.querySelector("#addRevisionBtn")?.addEventListener("click", () => {
+  const input = document.querySelector("#revisionInput");
+  input?.focus();
+  input?.scrollIntoView({ behavior: "smooth", block: "center" });
+});
+
 els.toggleGoalHistoryBtn.addEventListener("click", () => {
   goalHistoryVisible = !goalHistoryVisible;
   renderGoalHistory();
@@ -3193,7 +3205,7 @@ function plannerIcon(activityType) {
 }
 
 function plannerHost() {
-  return document.querySelector("#timetable");
+  return document.querySelector("#plannerRoot") || document.querySelector("#timetable");
 }
 
 function plannerSelectedDate() {
