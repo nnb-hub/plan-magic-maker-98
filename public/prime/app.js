@@ -3173,7 +3173,20 @@ window.addEventListener("offline", () => {
 let plannerEditingId = null;
 let plannerBound = false;
 let plannerRange = "day"; // "day" | "week"
+let plannerFilter = "all"; // all | pending | done
 let plannerError = "";
+
+const PLANNER_SUBJECTS = {
+  Physics: { icon: "&#9883;", key: "physics" },
+  Chemistry: { icon: "&#129514;", key: "chemistry" },
+  Botany: { icon: "&#127807;", key: "botany" },
+  Zoology: { icon: "&#128029;", key: "zoology" },
+  Revision: { icon: "&#128260;", key: "revision" },
+};
+
+function plannerSubjectMeta(subject) {
+  return PLANNER_SUBJECTS[subject] || { icon: "&#128218;", key: "physics" };
+}
 
 function plannerIcon(activityType) {
   return { Class: "&#127891;", Study: "&#128218;", "Question Practice": "&#9997;", "Mock Test": "&#128221;" }[activityType] || "&#128218;";
@@ -3187,26 +3200,39 @@ function plannerSelectedDate() {
   return plannerHost()?.dataset.plannerDate || todayKey();
 }
 
+function plannerShiftDate(date, days) {
+  const day = new Date(`${date}T00:00:00`);
+  day.setDate(day.getDate() + days);
+  return day.toISOString().slice(0, 10);
+}
+
 function plannerDatesInView(startDate) {
   if (plannerRange === "day") return [startDate];
-  const start = new Date(`${startDate}T00:00:00`);
-  return Array.from({ length: 7 }, (_, index) => {
-    const day = new Date(start);
-    day.setDate(start.getDate() + index);
-    return day.toISOString().slice(0, 10);
-  });
+  return Array.from({ length: 7 }, (_, index) => plannerShiftDate(startDate, index));
 }
 
 function plannerPlansForDate(date) {
   return state.timetable
     .filter((plan) => plan.date === date && !plan.archived)
+    .filter((plan) => (plannerFilter === "pending" ? !plan.done && !plan.canceled : plannerFilter === "done" ? plan.done : true))
     .sort((a, b) => String(a.time).localeCompare(String(b.time)));
 }
 
 function plannerDayLabel(date) {
   const day = new Date(`${date}T00:00:00`);
-  const label = day.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
-  return date === todayKey() ? `Today &middot; ${label}` : label;
+  const label = day.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" });
+  if (date === todayKey()) return `Today &middot; ${label}`;
+  if (date === todayKey(1)) return `Tomorrow &middot; ${label}`;
+  return label;
+}
+
+function plannerStateKey(plan) {
+  if (plan.canceled) return "aborted";
+  if (hasActivePlanBreak(plan)) return "paused";
+  if (plan.done) return "done";
+  if (isMissedPlan(plan)) return "missed";
+  if (plan.login) return "active";
+  return "planned";
 }
 
 function plannerReadForm() {
@@ -3222,84 +3248,129 @@ function plannerReadForm() {
   };
 }
 
+function plannerSessionCard(plan) {
+  const subject = plannerSubjectMeta(plan.subject);
+  const stateKey = plannerStateKey(plan);
+  const duration = getPlanDuration(plan);
+  return `
+    <article class="tp-card tp-${stateKey}" data-subject="${subject.key}">
+      <label class="tp-check">
+        <input type="checkbox" data-v3-toggle="${plan.id}" ${plan.done ? "checked" : ""} ${plan.canceled ? "disabled" : ""}>
+        <span class="sr-only-label">Mark done</span>
+      </label>
+      <div class="tp-avatar" aria-hidden="true">${subject.icon}</div>
+      <div class="tp-body">
+        <div class="tp-meta">
+          <strong class="tp-time">${escapeHtml(plan.time)}</strong>
+          <span class="tp-chip tp-chip-subject">${escapeHtml(plan.subject)}</span>
+          <span class="tp-chip tp-chip-activity">${plannerIcon(plan.activityType)} ${escapeHtml(plan.activityType || "Study")}</span>
+          <span class="tp-status">${getPlanStateLabel(plan)}</span>
+          ${duration ? `<span class="tp-chip tp-chip-duration">&#9201; ${escapeHtml(duration)}</span>` : ""}
+        </div>
+        <h4 class="tp-topic">${escapeHtml(plan.topic || plan.task || "Untitled session")}</h4>
+        <p class="tp-timing">${escapeHtml(getPlanTimingText(plan))}</p>
+        <div class="tp-actions">
+          <button type="button" data-v3-login="${plan.id}" ${plan.canceled ? "disabled" : ""}>${plan.login ? "Update In" : "Log In"}</button>
+          <button type="button" data-v3-logoff="${plan.id}" ${plan.canceled ? "disabled" : ""}>${plan.logoff ? "Update Out" : "Log Off"}</button>
+          <button type="button" data-v3-break="${plan.id}" ${plan.canceled || plan.done || hasActivePlanBreak(plan) ? "disabled" : ""}>Break</button>
+          <button type="button" class="secondary-button" data-v3-cancel-session="${plan.id}" ${plan.canceled ? "disabled" : ""}>Cancel</button>
+          <button type="button" class="secondary-button" data-v3-edit="${plan.id}">Edit</button>
+          <button type="button" class="text-button danger-button" data-v3-delete="${plan.id}">Remove</button>
+        </div>
+      </div>
+    </article>`;
+}
+
 function renderTimetable() {
   const host = plannerHost();
   if (!host) return;
   const selectedDate = plannerSelectedDate();
   host.dataset.plannerDate = selectedDate;
-  host.className = "panel planner-v2";
+  host.className = "panel planner-v3";
 
   const editing = plannerEditingId ? state.timetable.find((plan) => plan.id === plannerEditingId) : null;
   const draft = editing || { date: selectedDate, time: "06:00", activityType: "Study", subject: "Physics", topic: "" };
   const dates = plannerDatesInView(selectedDate);
   const plans = dates.flatMap((date) => plannerPlansForDate(date));
   const doneCount = plans.filter((plan) => plan.done).length;
+  const activeCount = plans.filter((plan) => plannerStateKey(plan) === "active" || plannerStateKey(plan) === "paused").length;
   const loggedMinutes = plans.reduce((total, plan) => total + (getPlanDurationMinutes(plan) || 0), 0);
   const loggedLabel = loggedMinutes >= 60
     ? `${Math.floor(loggedMinutes / 60)}h ${loggedMinutes % 60 ? `${loggedMinutes % 60}m` : ""}`.trim()
     : `${loggedMinutes}m`;
-
-  const sessionRow = (plan) => `
-    <article class="planner-v2-row ${plan.done ? "done" : ""} ${plan.canceled ? "canceled" : ""}">
-      <div class="planner-v2-time">${escapeHtml(plan.time)}</div>
-      <div class="planner-v2-main">
-        <strong>${plannerIcon(plan.activityType)} ${escapeHtml(plan.activityType || "Study")} &middot; ${escapeHtml(plan.subject)}</strong>
-        <span>${escapeHtml(plan.topic || plan.task || "")}</span>
-        <small>${plan.login ? `In ${escapeHtml(plan.login)}` : "Not logged in"}${plan.logoff ? ` &middot; Out ${escapeHtml(plan.logoff)} &middot; ${escapeHtml(getPlanDuration(plan))}` : ""}${hasActivePlanBreak(plan) ? " &middot; Break active" : ""}</small>
-      </div>
-      <div class="planner-v2-row-actions">
-        <button type="button" data-v3-login="${plan.id}" ${plan.canceled ? "disabled" : ""}>${plan.login ? "Update In" : "Log In"}</button>
-        <button type="button" data-v3-logoff="${plan.id}" ${plan.canceled ? "disabled" : ""}>${plan.logoff ? "Update Out" : "Log Off"}</button>
-        <button type="button" data-v3-break="${plan.id}" ${plan.canceled || hasActivePlanBreak(plan) ? "disabled" : ""}>Break</button>
-        <button type="button" class="secondary-button" data-v3-edit="${plan.id}">Edit</button>
-        <button type="button" class="secondary-button" data-v3-delete="${plan.id}">Delete</button>
-      </div>
-    </article>`;
+  const progress = plans.length ? Math.round((doneCount / plans.length) * 100) : 0;
 
   const listMarkup = plannerRange === "day"
-    ? (plans.length ? plans.map(sessionRow).join("") : '<div class="mini-item"><span>No sessions for this date yet. Add your first one above.</span></div>')
-    : dates.map((date) => {
+    ? (plans.length
+        ? plans.map(plannerSessionCard).join("")
+        : `<div class="tp-empty"><strong>No sessions here yet</strong><span>Fill the form above to lock in your first mission for this date.</span></div>`)
+    : (dates.map((date) => {
         const dayPlans = plannerPlansForDate(date);
         if (!dayPlans.length) return "";
-        return `<div class="planner-v2-day"><h3>${plannerDayLabel(date)}</h3>${dayPlans.map(sessionRow).join("")}</div>`;
-      }).join("") || '<div class="mini-item"><span>Nothing planned for the next 7 days.</span></div>';
+        return `<section class="tp-day"><header class="tp-day-header"><h3>${plannerDayLabel(date)}</h3><span>${dayPlans.length} session${dayPlans.length === 1 ? "" : "s"}</span></header>${dayPlans.map(plannerSessionCard).join("")}</section>`;
+      }).join("") || `<div class="tp-empty"><strong>Next 7 days are empty</strong><span>Plan ahead so momentum never breaks.</span></div>`);
 
   host.innerHTML = `
-    <div class="panel-header">
-      <div><p class="eyebrow">Plan</p><h2>Timetable Planner</h2></div>
+    <header class="tp-head">
+      <div>
+        <p class="eyebrow">Plan</p>
+        <h2>Timetable Planner</h2>
+        <p class="tp-sub">Build the day, log every mission, keep the streak alive.</p>
+      </div>
       <div class="segmented-control" aria-label="Timetable range">
         <button type="button" class="${plannerRange === "day" ? "active" : ""}" data-v3-range="day">Day</button>
         <button type="button" class="${plannerRange === "week" ? "active" : ""}" data-v3-range="week">Next 7 days</button>
       </div>
+    </header>
+
+    <div class="tp-stats">
+      <div class="tp-stat"><span>Sessions</span><strong>${plans.length}</strong></div>
+      <div class="tp-stat"><span>Completed</span><strong>${doneCount}</strong></div>
+      <div class="tp-stat"><span>In progress</span><strong>${activeCount}</strong></div>
+      <div class="tp-stat"><span>Time logged</span><strong>${loggedLabel}</strong></div>
+      <div class="tp-progress" role="img" aria-label="${progress}% complete">
+        <div class="tp-progress-bar"><i style="width:${progress}%"></i></div>
+        <small>${progress}% of this ${plannerRange === "day" ? "day" : "week"} complete</small>
+      </div>
     </div>
 
-    <form class="planner-v2-form" data-v3-form novalidate>
+    <form class="tp-form" data-v3-form novalidate>
       <label>Date<input data-v3-date type="date" value="${escapeHtml(draft.date || selectedDate)}"></label>
       <label>Start time<input data-v3-time type="time" value="${escapeHtml(draft.time || "06:00")}"></label>
       <label>Activity<select data-v3-activity>
         ${activityTypes.map((type) => `<option value="${type}" ${type === (draft.activityType || "Study") ? "selected" : ""}>${plannerIcon(type)} ${type}</option>`).join("")}
       </select></label>
       <label>Subject<select data-v3-subject>
-        ${["Physics", "Chemistry", "Botany", "Zoology", "Revision"].map((subject) => `<option value="${subject}" ${subject === draft.subject ? "selected" : ""}>${subject}</option>`).join("")}
+        ${Object.keys(PLANNER_SUBJECTS).map((subject) => `<option value="${subject}" ${subject === draft.subject ? "selected" : ""}>${plannerSubjectMeta(subject).icon} ${subject}</option>`).join("")}
       </select></label>
-      <label class="planner-v2-topic">Topic<input data-v3-topic type="text" maxlength="80" placeholder="e.g. Kinematics" value="${escapeHtml(draft.topic || draft.task || "")}"></label>
-      <div class="planner-v2-actions">
+      <label class="tp-form-topic">Topic<input data-v3-topic type="text" maxlength="80" placeholder="e.g. Motion in 1D" value="${escapeHtml(draft.topic || draft.task || "")}"></label>
+      <div class="tp-form-actions">
         <button type="submit">${editing ? "Save Changes" : "Add to Timetable"}</button>
-        ${editing ? '<button type="button" class="secondary-button" data-v3-cancel>Cancel edit</button>' : ""}
+        ${editing ? '<button type="button" class="secondary-button" data-v3-cancel-edit>Cancel edit</button>' : ""}
       </div>
-      ${plannerError ? `<p class="planner-v2-error" role="alert">${escapeHtml(plannerError)}</p>` : ""}
+      <div class="tp-quickadd">
+        <span>Quick add</span>
+        ${[["06:00", "Physics", "Concept + DPP"], ["14:45", "Chemistry", "Revision + MCQs"], ["19:30", "Botany", "NCERT active recall"]]
+          .map(([time, subject, topic]) => `<button type="button" class="text-button" data-v3-quick='${time}|${subject}|${topic}'>${time} ${subject}</button>`).join("")}
+      </div>
+      ${plannerError ? `<p class="tp-error" role="alert">${escapeHtml(plannerError)}</p>` : ""}
     </form>
 
-    <div class="planner-v2-datebar">
-      <label>${plannerRange === "day" ? "View date" : "Week from"}<input data-v3-view-date type="date" value="${escapeHtml(selectedDate)}"></label>
-      <div class="planner-v2-quick">
+    <div class="tp-toolbar">
+      <div class="tp-datenav">
+        <button type="button" class="text-button" data-v3-step="-1" aria-label="Previous day">&#8249;</button>
+        <input data-v3-view-date type="date" value="${escapeHtml(selectedDate)}">
+        <button type="button" class="text-button" data-v3-step="1" aria-label="Next day">&#8250;</button>
         <button type="button" class="text-button" data-v3-jump="today">Today</button>
         <button type="button" class="text-button" data-v3-jump="tomorrow">Tomorrow</button>
       </div>
-      <strong>${plans.length} session${plans.length === 1 ? "" : "s"} &middot; ${doneCount} done &middot; ${loggedLabel} logged</strong>
+      <div class="segmented-control tp-filter" aria-label="Filter sessions">
+        ${[["all", "All"], ["pending", "Pending"], ["done", "Done"]].map(([key, label]) =>
+          `<button type="button" class="${plannerFilter === key ? "active" : ""}" data-v3-filter="${key}">${label}</button>`).join("")}
+      </div>
     </div>
 
-    <div class="planner-v2-list">${listMarkup}</div>
+    <div class="tp-list">${listMarkup}</div>
   `;
 
   if (plannerBound) return;
@@ -3308,38 +3379,18 @@ function renderTimetable() {
   host.addEventListener("submit", (event) => {
     if (!event.target.matches("[data-v3-form]")) return;
     event.preventDefault();
-    const data = plannerReadForm();
-    if (!data) return;
-    if (!data.date || !data.time || !data.topic) {
-      plannerError = "Add a date, a start time and a topic before saving.";
-      renderTimetable();
-      host.querySelector("[data-v3-topic]")?.focus();
-      return;
-    }
-    plannerError = "";
-    const payload = { ...data, task: data.topic, startTime: data.time };
-    if (plannerEditingId) {
-      state.timetable = state.timetable.map((plan) => (plan.id === plannerEditingId ? { ...plan, ...payload } : plan));
-    } else {
-      state.timetable = [...state.timetable, {
-        id: crypto.randomUUID ? crypto.randomUUID() : `plan-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        ...payload,
-        done: false, login: "", logoff: "", canceled: false, cancelReason: "",
-        breaks: [], sessionLogs: [], endTime: "", totalDuration: 0, status: "planned",
-      }];
-    }
-    plannerEditingId = null;
-    host.dataset.plannerDate = data.date;
-    saveState();
-    render();
+    plannerSaveFromForm();
   });
 
   host.addEventListener("click", async (event) => {
     const button = event.target.closest("button");
     if (!button || !host.contains(button)) return;
 
-    if (button.dataset.v3Range) {
-      plannerRange = button.dataset.v3Range;
+    if (button.dataset.v3Range) { plannerRange = button.dataset.v3Range; renderTimetable(); return; }
+    if (button.dataset.v3Filter) { plannerFilter = button.dataset.v3Filter; renderTimetable(); return; }
+    if (button.dataset.v3Step) {
+      plannerEditingId = null;
+      host.dataset.plannerDate = plannerShiftDate(plannerSelectedDate(), Number(button.dataset.v3Step) * (plannerRange === "week" ? 7 : 1));
       renderTimetable();
       return;
     }
@@ -3349,12 +3400,16 @@ function renderTimetable() {
       renderTimetable();
       return;
     }
-    if (button.dataset.v3Cancel !== undefined) {
-      plannerEditingId = null;
-      plannerError = "";
-      renderTimetable();
+    if (button.dataset.v3Quick) {
+      const [time, subject, topic] = button.dataset.v3Quick.split("|");
+      host.querySelector("[data-v3-time]").value = time;
+      host.querySelector("[data-v3-subject]").value = subject;
+      host.querySelector("[data-v3-topic]").value = topic;
+      plannerSaveFromForm();
       return;
     }
+    if (button.dataset.v3CancelEdit !== undefined) { plannerEditingId = null; plannerError = ""; renderTimetable(); return; }
+
     const editId = button.dataset.v3Edit;
     if (editId) {
       plannerEditingId = editId;
@@ -3396,18 +3451,56 @@ function renderTimetable() {
       return;
     }
     const breakId = button.dataset.v3Break;
-    if (breakId) {
-      await addPlanBreak(breakId);
-      renderTimetable();
-    }
+    if (breakId) { await addPlanBreak(breakId); renderTimetable(); return; }
+    const cancelId = button.dataset.v3CancelSession;
+    if (cancelId) { await cancelPlanSession(cancelId); renderTimetable(); }
   });
 
   host.addEventListener("change", (event) => {
-    if (!event.target.matches("[data-v3-view-date]")) return;
-    plannerEditingId = null;
-    host.dataset.plannerDate = event.target.value || todayKey();
-    renderTimetable();
+    if (event.target.matches("[data-v3-view-date]")) {
+      plannerEditingId = null;
+      host.dataset.plannerDate = event.target.value || todayKey();
+      renderTimetable();
+      return;
+    }
+    const toggleId = event.target.dataset?.v3Toggle;
+    if (toggleId) {
+      const checked = event.target.checked;
+      state.timetable = state.timetable.map((plan) => (plan.id === toggleId && !plan.canceled
+        ? { ...plan, done: checked, status: checked ? "completed" : "planned" }
+        : plan));
+      saveState();
+      render();
+    }
   });
+}
+
+function plannerSaveFromForm() {
+  const host = plannerHost();
+  const data = plannerReadForm();
+  if (!host || !data) return;
+  if (!data.date || !data.time || !data.topic) {
+    plannerError = "Add a date, a start time and a topic before saving.";
+    renderTimetable();
+    host.querySelector("[data-v3-topic]")?.focus();
+    return;
+  }
+  plannerError = "";
+  const payload = { ...data, task: data.topic, startTime: data.time };
+  if (plannerEditingId) {
+    state.timetable = state.timetable.map((plan) => (plan.id === plannerEditingId ? { ...plan, ...payload } : plan));
+  } else {
+    state.timetable = [...state.timetable, {
+      id: crypto.randomUUID ? crypto.randomUUID() : `plan-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      ...payload,
+      done: false, login: "", logoff: "", canceled: false, cancelReason: "",
+      breaks: [], sessionLogs: [], endTime: "", totalDuration: 0, status: "planned",
+    }];
+  }
+  plannerEditingId = null;
+  host.dataset.plannerDate = data.date;
+  saveState();
+  render();
 }
 
 initializeCloudSync();
