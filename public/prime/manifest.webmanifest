@@ -1,0 +1,26 @@
+{
+  "name": "PROJECT PRIME: INVICTUS IGNIS",
+  "short_name": "Project Prime",
+  "description": "Rise unconquered. Burn relentlessly. Heal compassionately.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#101714",
+  "theme_color": "#155340",
+  "categories": ["education", "productivity", "medical"],
+  "icons": [
+    {
+      "src": "assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

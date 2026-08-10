@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#155340" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Project Prime" />
+    <title>PROJECT PRIME: INVICTUS IGNIS</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" type="image/png" href="assets/icon-192.png" />
+    <link rel="apple-touch-icon" href="assets/icon-192.png" />
+    <link rel="stylesheet" href="styles.css?v=45" />
+  </head>
+  <body>
+    <aside class="mission-sidebar" aria-label="Dashboard navigation">
+      <div class="sidebar-brand">
+        <img class="sidebar-logo" src="assets/logo.png" alt="Project Prime Invictus Ignis logo" />
+        <div>
+          <strong>PROJECT PRIME</strong>
+          <span>INVICTUS IGNIS</span>
+          <small class="powered-by">Powered by MEDMISSION ALPHA</small>
+        </div>
+      </div>
+      <button id="sidebarToggle" class="sidebar-toggle" type="button" aria-label="Collapse sidebar">☰</button>
+      <nav class="sidebar-nav">
+        <a href="#dashboard">🏠 <span>Dashboard</span></a>
+        <a href="#mission">🎯 <span>Today's Mission</span></a>
+        <a href="#timetable">📚 <span>Timetable Planner</span></a>
+        <a href="#chapters">📖 <span>Chapter Tracker</span></a>
+        <a href="#revision">🔄 <span>Revision Planner</span></a>
+        <a href="#mocks">📝 <span>Mock Tests</span></a>
+        <a href="#mentor">🤖 <span>Mentor</span></a>
+        <a href="#analytics">📈 <span>Analytics</span></a>
+        <a href="#profile">⚙️ <span>Profile</span></a>
+      </nav>
+    </aside>
+
+    <main id="dashboard" class="app-shell">
+      <header class="app-topbar">
+        <div class="topbar-location">
+          <span class="topbar-dot"></span>
+          <div><strong>Dr. Noel's daily note</strong><small id="topbarMotivation">Plan, practise, improve.</small></div>
+        </div>
+        <div class="topbar-status"><span>Preparation dashboard</span><strong>2027</strong></div>
+      </header>
+      <section class="hero">
+        <div class="hero-copy-block">
+          <img class="brand-logo" src="assets/logo.png" alt="Project Prime Invictus Ignis logo" />
+          <p class="eyebrow">Good Morning, Noel</p>
+          <h1>PROJECT PRIME: INVICTUS IGNIS</h1>
+          <p class="hero-powered">Powered by <strong>MEDMISSION ALPHA</strong></p>
+          <p class="hero-tagline">Rise unconquered. Burn relentlessly. Heal compassionately.</p>
+          <p class="hero-copy">
+            Today is not a tracker entry. It is a mission block for the future doctor you are becoming.
+          </p>
+          <p id="dailyLine" class="daily-line"></p>
+        </div>
+        <div class="exam-card" aria-label="Countdown to NEET">
+          <button id="themeToggle" class="theme-toggle" type="button">Premium Dark</button>
+          <span>Days to NEET</span>
+          <strong id="daysToExam">--</strong>
+          <label for="examDate">Exam date</label>
+          <input id="examDate" type="date" />
+        </div>
+      </section>
+
+      <section id="analytics" class="stats-grid" aria-label="Preparation summary">
+        <article class="headquarters-card">
+          <span>Today's Analytics</span>
+          <div class="hq-metrics">
+            <div>
+              <small>Class</small>
+              <strong id="hqClassToday">0m</strong>
+            </div>
+            <div>
+              <small>Study</small>
+              <strong id="hqStudyToday">0m</strong>
+            </div>
+            <div>
+              <small>Question Practice</small>
+              <strong id="hqQuestionPracticeToday">0m</strong>
+            </div>
+            <div>
+              <small>Mock Test</small>
+              <strong id="hqMockTestToday">0m</strong>
+            </div>
+            <div>
+              <small>Total Productive Time</small>
+              <strong id="hqTotalProductiveToday">0m</strong>
+            </div>
+            <div>
+              <small>Break Time Today</small>
+              <strong id="hqBreakToday">0m</strong>
+            </div>
+            <div>
+              <small>Productivity</small>
+              <strong id="hqProductivity">0%</strong>
+            </div>
+          </div>
+        </article>
+        <article>
+          <span>Today's Productive Time</span>
+          <strong id="todayHours">0h</strong>
+        </article>
+        <article>
+          <span>Weekly Productive Time</span>
+          <strong id="weekHours">0h</strong>
+        </article>
+        <article>
+          <span>Goal Streak</span>
+          <strong id="streak">0 days</strong>
+        </article>
+        <article>
+          <span>Average Mock</span>
+          <strong id="avgMock">0</strong>
+        </article>
+        <article>
+          <span>Motivation Streak</span>
+          <strong id="motivationStreak">0 days</strong>
+        </article>
+        <article>
+          <span>Readiness</span>
+          <strong id="readinessScore">0%</strong>
+        </article>
+        <article>
+          <span>Mission Day</span>
+          <strong id="dashboardMissionDay">1</strong>
+        </article>
+        <article>
+          <span>Backlog Count</span>
+          <strong id="dashboardBacklogCount">0</strong>
+          <div class="stat-actions">
+            <button id="backlogCoveredBtn" class="secondary-button" type="button">Covered</button>
+            <button id="editBacklogBtn" class="text-button" type="button">Edit</button>
+          </div>
+        </article>
+        <article>
+          <span>Daily Completion</span>
+          <strong id="dashboardDailyCompletion">0%</strong>
+        </article>
+        <article>
+          <span>Current Focus</span>
+          <strong id="dashboardCurrentFocus">Ready</strong>
+        </article>
+        <article>
+          <span>Topic</span>
+          <strong id="dashboardMainSubject">Biology</strong>
+        </article>
+      </section>
+
+      <section class="mission-status-grid">
+        <article class="panel weekly-report-card">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Weekly Headquarters Report</p>
+              <h2>Mission Performance</h2>
+            </div>
+            <strong id="weeklyMissionGrade" class="report-grade">--</strong>
+          </div>
+          <div id="weeklyReportGrid" class="weekly-report-grid"></div>
+          <p id="weeklyReportAction" class="weekly-report-action"></p>
+        </article>
+      </section>
+
+      <section class="daily-command-grid" aria-label="Daily command center">
+        <article class="panel priority-card">
+          <p class="eyebrow">Today’s Priority</p>
+          <h2 id="priorityTask">Set your first task</h2>
+          <p id="priorityMeta" class="priority-meta">Add a task to the timetable and it will appear here.</p>
+          <button id="priorityFocusBtn" type="button">Start Focus Mode</button>
+        </article>
+        <article class="panel focus-preview-card">
+          <div>
+            <p class="eyebrow">Deep Work</p>
+            <h2>Focus Mode</h2>
+            <p>One task, one timer, no dashboard noise.</p>
+          </div>
+          <button id="focusModeBtn" class="secondary-button" type="button">Enter Focus Mode</button>
+        </article>
+      </section>
+
+      <section id="focusDeck" class="focus-deck hidden" aria-live="polite">
+        <button id="exitFocusModeBtn" class="focus-exit" type="button">Exit</button>
+        <p class="eyebrow">Focus Mode</p>
+        <p id="focusDeckSubject" class="focus-deck-subject">Your next task</p>
+        <h2 id="focusDeckTask">Choose one clear action and begin.</h2>
+        <strong id="focusDeckTimer">00:00:00</strong>
+        <p id="focusDeckStatus">Ready when you are.</p>
+        <div class="focus-deck-actions">
+          <button id="focusDeckStartBtn" type="button">Start Timer</button>
+          <button id="focusDeckPauseBtn" class="secondary-button" type="button">Pause</button>
+        </div>
+      </section>
+
+      <section id="mission" class="mission-grid">
+        <article id="mentor" class="panel mentor-card">
+          <p class="eyebrow">Mentor</p>
+          <h2 id="mentorGreeting">Good Afternoon Noel</h2>
+          <div class="mentor-stats">
+            <div>
+              <span>Yesterday</span>
+              <strong id="mentorYesterdayHours">0h</strong>
+            </div>
+            <div>
+              <span>Current Streak</span>
+              <strong id="mentorCurrentStreak">0 Days</strong>
+            </div>
+            <div>
+              <span>Recovery Status</span>
+              <strong id="mentorRecoveryStatus">On Track</strong>
+            </div>
+            <div>
+              <span>Future Doctor Readiness</span>
+              <strong id="mentorReadiness">0%</strong>
+            </div>
+          </div>
+          <p class="mentor-focus-title">Today's Battle</p>
+          <strong id="mentorTodayBattle" class="mentor-battle">According to your willingness</strong>
+          <ul id="mentorFocusList" class="mentor-focus-list">
+            <li>Human Physiology</li>
+            <li>Electrostatics</li>
+            <li>Organic Chemistry</li>
+          </ul>
+          <p id="mentorNote" class="mentor-note">Stay consistent. Every study session matters.</p>
+        </article>
+
+        <article id="profile" class="panel doctor-card">
+          <p class="eyebrow">Future Doctor</p>
+          <h2>ASCENDING COMPASSION</h2>
+          <div class="doctor-metrics">
+            <div><span>Readiness</span><strong id="doctorReadiness">0%</strong></div>
+            <div><span>Streak</span><strong id="doctorStreak">0 days</strong></div>
+            <div><span>Target Score</span><strong id="doctorTargetScore">650+</strong></div>
+            <div><span>Current Mission</span><strong id="doctorTargetCollege">AIIMS / GMC</strong></div>
+          </div>
+          <form id="doctorPathForm" class="doctor-path-form">
+            <label>
+              Target score
+              <input id="doctorTargetScoreInput" type="text" placeholder="650+" />
+            </label>
+            <label>
+              Current mission
+              <input id="doctorTargetCollegeInput" type="text" placeholder="AIIMS / GMC" />
+            </label>
+            <label>
+              Mission statement
+              <input id="doctorPathNoteInput" type="text" placeholder="Learn Deeply. Heal Faithfully. Serve Globally." />
+            </label>
+            <button type="submit">Save Path</button>
+          </form>
+          <p id="doctorPathNote">Learn Deeply. Heal Faithfully. Serve Globally.</p>
+        </article>
+      </section>
+      <section id="timetable" class="planner-grid">
+        <article class="panel wide-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Plan</p>
+              <h2>Timetable Planner</h2>
+            </div>
+            <div class="segmented-control" aria-label="Timetable view">
+              <button id="todayViewBtn" type="button" class="active">Date</button>
+              <button id="weekViewBtn" type="button">Full Week</button>
+            </div>
+          </div>
+          <div class="view-date-row">
+            <label for="viewDate">View date</label>
+            <input id="viewDate" type="date" />
+            <button id="tomorrowBtn" class="text-button" type="button">Tomorrow</button>
+          </div>
+          <div class="daily-summary" id="dailySummary"></div>
+          <form id="timetableForm" class="timetable-form">
+            <input id="planDate" type="date" required />
+            <input id="planTime" type="time" value="06:00" required />
+            <select id="planActivityType" aria-label="Activity type">
+              <option value="Class">&#127891; Class</option>
+              <option value="Study" selected>&#128218; Study</option>
+              <option value="Question Practice">&#9997; Question Practice</option>
+              <option value="Mock Test">&#128221; Mock Test</option>
+            </select>
+            <select id="planSubject" aria-label="Subject">
+              <option>Physics</option>
+              <option>Chemistry</option>
+              <option>Botany</option>
+              <option>Zoology</option>
+            </select>
+            <input id="planTask" type="text" placeholder="Topic" maxlength="80" required />
+            <button id="planSubmitBtn" type="button">Add</button>
+            <button id="planCancelBtn" class="text-button hidden" type="button">Cancel</button>
+          </form>
+          <div id="timetableList" class="timetable-list"></div>
+        </article>
+
+        <article class="panel mission-goals-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Today</p>
+              <h2>Daily Goals</h2>
+            </div>
+            <button id="addGoalBtn" class="icon-button" title="Add goal" aria-label="Add goal">+</button>
+          </div>
+          <form id="goalForm" class="compact-form">
+            <input id="goalInput" type="text" placeholder="Example: Revise Biomolecules" maxlength="80" required />
+            <button type="submit">Add</button>
+          </form>
+          <div id="goalList" class="goal-list"></div>
+          <div id="goalSevenDayStats" class="goal-week-grid" aria-label="Last 7 days goal summary"></div>
+          <div class="history-block">
+            <button id="toggleGoalHistoryBtn" class="history-toggle" type="button">Show Goal History</button>
+            <div id="goalHistory" class="history-list hidden"></div>
+          </div>
+        </article>
+      </section>
+
+      <section id="settings" class="panel sync-panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Cloud Account</p>
+            <h2>Google Sync</h2>
+          </div>
+          <div class="sync-actions">
+            <button id="googleSignInBtn" type="button">Sign in with Google</button>
+            <button id="googleSignOutBtn" class="secondary-button hidden" type="button">Sign Out</button>
+          </div>
+        </div>
+        <div class="sync-grid">
+          <div>
+            <span>Account</span>
+            <strong id="accountName">Local backup only</strong>
+          </div>
+          <div>
+            <span>Cloud</span>
+            <strong id="cloudSyncStatus">Not connected</strong>
+          </div>
+          <div>
+            <span>Network</span>
+            <strong id="networkStatus">Checking</strong>
+          </div>
+        </div>
+        <p id="cloudSyncMessage" class="status-line"></p>
+      </section>
+
+      <section class="panel pwa-panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Companion Mode</p>
+            <h2>PWA & Study Notifications</h2>
+          </div>
+          <div class="panel-actions">
+            <button id="testNotificationBtn" class="secondary-button" type="button">Test</button>
+            <button id="installAppBtn" class="secondary-button hidden" type="button">Install App</button>
+          </div>
+        </div>
+        <div class="notification-grid">
+          <label class="toggle-row">
+            <input id="notificationsEnabled" type="checkbox" />
+            <span>Enable notifications</span>
+          </label>
+          <label>
+            Reminder minutes
+            <input id="reminderMinutes" type="text" placeholder="30,15,0" />
+          </label>
+          <label>
+            Quiet start
+            <input id="quietStart" type="time" />
+          </label>
+          <label>
+            Quiet end
+            <input id="quietEnd" type="time" />
+          </label>
+        </div>
+        <p id="notificationStatus" class="status-line"></p>
+      </section>
+
+      <section id="chapters" class="workspace">
+        <aside class="panel motivation-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Streak</p>
+              <h2>Daily Motivation</h2>
+            </div>
+          </div>
+          <blockquote id="motivationQuote"></blockquote>
+          <div class="consistency-header">
+            <strong>Consistency map</strong>
+            <span id="consistencySummary">0 active days</span>
+          </div>
+          <div id="consistencyHeatmap" class="consistency-heatmap" aria-label="Last 28 days of study consistency"></div>
+          <button id="focusDoneBtn" type="button">Mark Today Focused</button>
+          <button id="exportDataBtn" class="secondary-button" type="button">Export Backup</button>
+          <button id="importDataBtn" class="secondary-button" type="button">Import Backup</button>
+          <input id="importDataInput" type="file" accept="application/json,.json" hidden>
+          <p id="focusStatus" class="status-line"></p>
+        </aside>
+
+        <section class="panel main-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Subjects</p>
+              <h2>Chapter Progress</h2>
+            </div>
+          </div>
+          <div class="subject-grid" id="subjectGrid"></div>
+        </section>
+      </section>
+
+      <div id="celebration" class="celebration hidden" role="status" aria-live="polite">
+        <div class="celebration-card">
+          <span>✦</span>
+          <h2>Mission complete</h2>
+          <p>Today’s planned tasks are done. Take a breath—you earned it.</p>
+          <button id="celebrationCloseBtn" type="button">Continue</button>
+        </div>
+      </div>
+
+
+      <section class="lower-grid">
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Optional</p>
+              <h2>Manual Study Add</h2>
+            </div>
+          </div>
+          <form id="sessionForm" class="stack-form">
+            <label>
+              Subject
+              <select id="sessionSubject">
+                <option>Physics</option>
+                <option>Chemistry</option>
+                <option>Botany</option>
+                <option>Zoology</option>
+              </select>
+            </label>
+            <label>
+              Hours
+              <input id="sessionHours" type="number" min="0.25" max="16" step="0.25" value="1" required />
+            </label>
+            <label>
+              Focus
+              <input id="sessionFocus" type="text" placeholder="Example: MCQs from Rotational Motion" maxlength="90" />
+            </label>
+            <button type="submit">Save Session</button>
+          </form>
+          <div id="sessionList" class="mini-list"></div>
+        </article>
+
+        <article id="mocks" class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Test Analysis</p>
+              <h2>Mock Scores</h2>
+            </div>
+          </div>
+          <form id="mockForm" class="score-form">
+            <select id="mockTotal">
+              <option value="720">720 marks</option>
+              <option value="360">360 marks</option>
+              <option value="180">180 marks</option>
+              <option value="custom">Custom total</option>
+            </select>
+            <input id="mockCustomTotal" class="hidden" type="number" min="1" max="2000" placeholder="Custom total marks" />
+            <input id="mockScore" type="number" min="0" max="720" placeholder="Score / 720" required />
+            <input id="mockMistakes" type="number" min="0" max="180" placeholder="Mistakes" />
+            <select id="mockMistakeType">
+              <option>Mixed mistakes</option>
+              <option>Concept gap</option>
+              <option>NCERT missed</option>
+              <option>Calculation</option>
+              <option>Silly mistake</option>
+              <option>Time pressure</option>
+            </select>
+            <input id="mockWeakArea" type="text" maxlength="70" placeholder="Weak area" />
+            <input id="mockName" type="text" maxlength="60" placeholder="Test name (optional)" />
+            <input id="mockDate" type="date" aria-label="Test date" />
+            <details class="subject-split" id="subjectSplit">
+              <summary>Subject-wise scores (optional)</summary>
+              <p>Enter each subject score and its maximum marks to find your real strengths.</p>
+              <div class="subject-split-grid">
+                <label>Physics <span><input id="mockPhysicsScore" type="number" min="0" placeholder="Score" /><input id="mockPhysicsTotal" type="number" min="1" placeholder="Out of" /></span></label>
+                <label>Chemistry <span><input id="mockChemistryScore" type="number" min="0" placeholder="Score" /><input id="mockChemistryTotal" type="number" min="1" placeholder="Out of" /></span></label>
+                <label>Botany <span><input id="mockBotanyScore" type="number" min="0" placeholder="Score" /><input id="mockBotanyTotal" type="number" min="1" placeholder="Out of" /></span></label>
+                <label>Zoology <span><input id="mockZoologyScore" type="number" min="0" placeholder="Score" /><input id="mockZoologyTotal" type="number" min="1" placeholder="Out of" /></span></label>
+              </div>
+            </details>
+            <button type="submit">Add</button>
+          </form>
+          <div class="chart" id="mockChart" aria-label="Mock test score chart"></div>
+          <div id="mockInsights" class="mock-insights" aria-live="polite"></div>
+          <div id="mockSubjectInsights" class="mock-subject-insights" aria-live="polite"></div>
+          <div id="mockList" class="mini-list"></div>
+        </article>
+
+        <article id="predictor" class="panel rank-predictor-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">NEET 2026 Intelligence</p>
+              <h2>Rank & College Path Predictor</h2>
+            </div>
+          </div>
+          <p class="predictor-intro">Automatically updated from Test Analysis. Your latest test carries the most weight, while recent tests stabilise the estimate.</p>
+          <form id="rankPredictorForm" class="predictor-form">
+            <label>Category<select id="predictorCategory"><option value="General">General</option><option value="EWS">EWS</option><option value="OBC">OBC-NCL</option><option value="SC">SC</option><option value="ST">ST</option></select></label>
+            <label>Counselling route<select id="predictorRoute"><option value="AIQ">15% AIQ + central institutes</option><option value="State">State quota focus</option><option value="Both">Compare AIQ and state quota</option></select></label>
+            <button type="submit">Refresh Guidance</button>
+          </form>
+          <div id="rankPredictorResult" class="rank-predictor-result" aria-live="polite"></div>
+          <p class="predictor-source">Data anchors: NTA NEET (UG) 2026 results and Key Data Points report, issued 16 July 2026. This is an estimate, not an official rank or seat-allotment result.</p>
+        </article>
+
+        <article id="revision" class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Revision</p>
+              <h2>Next Queue</h2>
+            </div>
+            <button id="addRevisionBtn" class="icon-button" title="Add revision" aria-label="Add revision">+</button>
+          </div>
+          <form id="revisionForm" class="compact-form">
+            <input id="revisionInput" type="text" placeholder="Chapter to revise" maxlength="80" required />
+            <button type="submit">Add</button>
+          </form>
+          <div id="revisionList" class="mini-list"></div>
+        </article>
+      </section>
+      <section id="syllabus" class="study-grid">
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Official Units</p>
+              <h2>Syllabus List</h2>
+            </div>
+            <select id="syllabusFilter" class="small-select">
+              <option>All</option>
+              <option>Physics</option>
+              <option>Chemistry</option>
+              <option>Biology</option>
+            </select>
+          </div>
+          <div id="syllabusSummary" class="status-line"></div>
+          <div id="syllabusList" class="check-list"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Repair Zone</p>
+              <h2>Weak Topic Tracker</h2>
+            </div>
+          </div>
+          <form id="weakForm" class="weak-form">
+            <select id="weakSubject">
+              <option>Physics</option>
+              <option>Chemistry</option>
+              <option>Botany</option>
+              <option>Zoology</option>
+            </select>
+            <input id="weakTopic" type="text" placeholder="Weak topic" maxlength="80" required />
+            <select id="weakPriority">
+              <option>High</option>
+              <option>Medium</option>
+              <option>Low</option>
+            </select>
+            <input id="weakAction" type="text" placeholder="Next action" maxlength="80" />
+            <button type="submit">Add</button>
+          </form>
+          <div id="weakList" class="mini-list"></div>
+          <div class="resolved-block">
+            <h3>Resolved Weak Topics</h3>
+            <div id="resolvedWeakList" class="mini-list"></div>
+          </div>
+        </article>
+      </section>
+
+    </main>
+
+    <nav class="bottom-nav" aria-label="Mobile dashboard navigation">
+      <a href="#dashboard">🏠<span>Home</span></a>
+      <a href="#syllabus">📚<span>Study</span></a>
+      <a href="#mission">🎯<span>Mission</span></a>
+      <a href="#mentor">🤖<span>Mentor</span></a>
+      <a href="#profile">👤<span>Profile</span></a>
+    </nav>
+
+    <div id="pauseModal" class="pause-modal hidden" role="dialog" aria-modal="true" aria-labelledby="pauseModalTitle">
+      <div class="pause-dialog">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Mission Pause</p>
+            <h2 id="pauseModalTitle">Why are you pausing?</h2>
+          </div>
+        </div>
+        <div class="pause-options">
+          <button type="button" data-break-reason="Tea Break">☕ Tea Break</button>
+          <button type="button" data-break-reason="Meal Break">🍽️ Meal Break</button>
+          <button type="button" data-break-reason="Nature Call">🚻 Nature Call</button>
+          <button type="button" data-break-reason="Water Break">💧 Water Break</button>
+          <button type="button" data-break-reason="Family Call">📞 Family Call</button>
+          <button type="button" data-break-reason="Rest Break">😴 Rest Break</button>
+          <button type="button" data-break-reason="Other">🏢 Other</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="app.js?v=45"></script>
+    <script type="module" src="planner-v2.js?v=1"></script>
+  </body>
+</html>
