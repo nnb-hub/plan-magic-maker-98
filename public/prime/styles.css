@@ -3119,3 +3119,14 @@ body:not(.dark-mode) .plan-row .pill { border: 0; box-shadow: none; }
   .tp-card { grid-template-columns: auto minmax(0, 1fr); }
   .tp-avatar { display: none; }
 }
+
+.tp-status { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 99px; background: var(--soft); }
+.tp-status i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.tp-status-planned i { background: var(--blue); }
+.tp-status-active i { background: var(--amber); }
+.tp-status-paused i { background: var(--amber); }
+.tp-status-done i { background: var(--green); }
+.tp-status-missed i { background: var(--muted); }
+.tp-status-aborted i { background: var(--rose); }
+.tp-status-done { color: var(--green); background: color-mix(in srgb, var(--green) 12%, transparent); }
+.tp-status-active { color: var(--chemistry); background: color-mix(in srgb, var(--amber) 16%, transparent); }

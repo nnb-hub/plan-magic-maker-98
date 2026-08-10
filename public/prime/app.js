@@ -3264,7 +3264,7 @@ function plannerSessionCard(plan) {
           <strong class="tp-time">${escapeHtml(plan.time)}</strong>
           <span class="tp-chip tp-chip-subject">${escapeHtml(plan.subject)}</span>
           <span class="tp-chip tp-chip-activity">${plannerIcon(plan.activityType)} ${escapeHtml(plan.activityType || "Study")}</span>
-          <span class="tp-status">${getPlanStateLabel(plan)}</span>
+          <span class="tp-status tp-status-${stateKey}"><i></i>${escapeHtml(getPlanStateLabel(plan).replace(/^\S+\s/, ""))}</span>
           ${duration ? `<span class="tp-chip tp-chip-duration">&#9201; ${escapeHtml(duration)}</span>` : ""}
         </div>
         <h4 class="tp-topic">${escapeHtml(plan.topic || plan.task || "Untitled session")}</h4>
