@@ -10,7 +10,7 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" type="image/png" href="assets/icon-192.png" />
     <link rel="apple-touch-icon" href="assets/icon-192.png" />
-    <link rel="stylesheet" href="styles.css?v=47" />
+    <link rel="stylesheet" href="styles.css?v=48" />
   </head>
   <body>
     <aside class="mission-sidebar" aria-label="Dashboard navigation">
@@ -27,6 +27,7 @@
         <a href="#dashboard">🏠 <span>Dashboard</span></a>
         <a href="#mission">🎯 <span>Today's Mission</span></a>
         <a href="#timetable">📚 <span>Timetable Planner</span></a>
+        <a href="#circular">🧾 <span>Daily Circular</span></a>
         <a href="#chapters">📖 <span>Chapter Tracker</span></a>
         <a href="#revision">🔄 <span>Revision Planner</span></a>
         <a href="#mocks">📝 <span>Mock Tests</span></a>
@@ -311,6 +312,10 @@
             <div id="goalHistory" class="history-list hidden"></div>
           </div>
         </article>
+      </section>
+
+      <section id="circular" class="circular-section" aria-label="Daily Mission Execution Circular">
+        <article id="circularRoot" class="panel wide-panel"></article>
       </section>
 
       <section id="settings" class="panel sync-panel">
@@ -603,6 +608,6 @@
       </div>
     </div>
 
-    <script type="module" src="app.js?v=47"></script>
+    <script type="module" src="app.js?v=48"></script>
   </body>
 </html>
