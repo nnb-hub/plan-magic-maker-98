@@ -57,6 +57,7 @@ const defaultState = {
   ],
   resolvedWeakTopics: [],
   celebratedDates: [],
+  dailyReports: [],
   syllabusDone: {},
   doctorPath: {
     targetScore: "700",
@@ -386,6 +387,7 @@ function normalizeState(value = {}) {
     manualBacklogCount: Number.isFinite(Number(parsed.manualBacklogCount)) ? Math.max(0, Math.round(Number(parsed.manualBacklogCount))) : null,
     weakTopics: parsed.weakTopics || defaultState.weakTopics,
     resolvedWeakTopics: parsed.resolvedWeakTopics || defaultState.resolvedWeakTopics,
+    dailyReports: Array.isArray(parsed.dailyReports) ? parsed.dailyReports : [],
     timetable: normalizeTimetable(parsed.timetable || defaultState.timetable),
     syllabusDone: { ...defaultState.syllabusDone, ...(parsed.syllabusDone || {}) },
     doctorPath: { ...defaultState.doctorPath, ...(parsed.doctorPath || {}) },
@@ -828,6 +830,7 @@ function render() {
   renderMotivation();
   renderSyllabus();
   renderWeakTopics();
+  renderCircular();
 }
 
 function renderNotificationSettings() {
