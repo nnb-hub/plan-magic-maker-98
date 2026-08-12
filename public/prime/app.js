@@ -3529,8 +3529,8 @@ render();
    data. It never mutates sessions or historical study time.
    ========================================================== */
 
-let circularOpenId = null;
-let circularPreview = null;
+var circularOpenId = null;
+var circularPreview = null;
 
 function circularMissionDayFor(date) {
   const start = new Date(`${state.missionStartDate || defaultState.missionStartDate}T00:00:00`);
