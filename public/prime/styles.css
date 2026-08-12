@@ -3130,3 +3130,100 @@ body:not(.dark-mode) .plan-row .pill { border: 0; box-shadow: none; }
 .tp-status-aborted i { background: var(--rose); }
 .tp-status-done { color: var(--green); background: color-mix(in srgb, var(--green) 12%, transparent); }
 .tp-status-active { color: var(--chemistry); background: color-mix(in srgb, var(--amber) 16%, transparent); }
+
+/* ===== Daily Mission Execution Circular ===== */
+.circular-section { margin-top: 28px; }
+.dmec-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.dmec-doc {
+  margin-top: 18px;
+  border: 1px solid var(--line);
+  border-top: 5px solid var(--green-dark);
+  border-radius: 14px;
+  background: var(--panel);
+  padding: 26px clamp(14px, 3vw, 34px);
+}
+.dmec-head { text-align: center; border-bottom: 2px double var(--line); padding-bottom: 16px; }
+.dmec-org { margin: 0; letter-spacing: 0.22em; font-weight: 800; font-size: 0.86rem; color: var(--green-dark); }
+.dmec-office { margin: 4px 0 0; letter-spacing: 0.18em; font-size: 0.72rem; color: var(--muted); }
+.dmec-title { margin: 12px 0 6px; font-size: clamp(1.05rem, 3vw, 1.5rem); letter-spacing: 0.06em; }
+.dmec-meta {
+  display: grid; gap: 8px; margin-top: 14px; text-align: left;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+.dmec-meta span { display: grid; gap: 2px; background: var(--soft); border-radius: 8px; padding: 8px 10px; }
+.dmec-meta small { font-size: 0.6rem; letter-spacing: 0.14em; color: var(--muted); }
+.dmec-meta strong { font-size: 0.82rem; }
+.dmec-stamp { margin: 14px 0 0; font-size: 0.68rem; letter-spacing: 0.16em; color: var(--muted); }
+.dmec-block { margin-top: 26px; }
+.dmec-block h3 { margin: 0 0 12px; font-size: 0.86rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--green-dark); }
+.dmec-tiles { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+.dmec-tile { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 4px; }
+.dmec-tile span { font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); }
+.dmec-tile strong { font-size: 1.05rem; }
+.dmec-table-wrap { overflow-x: auto; }
+.dmec-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; min-width: 560px; }
+.dmec-table th, .dmec-table td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.dmec-table th { font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.dmec-status { display: inline-block; font-size: 0.62rem; letter-spacing: 0.08em; padding: 3px 8px; border-radius: 999px; font-weight: 700; }
+.dmec-ok { background: rgba(33, 116, 91, 0.14); color: var(--green); }
+.dmec-active { background: rgba(53, 111, 159, 0.16); color: var(--blue); }
+.dmec-warn { background: var(--warn-soft); color: var(--amber); }
+.dmec-bad { background: var(--danger-soft); color: var(--rose); }
+.dmec-moved { background: rgba(123, 90, 166, 0.16); color: var(--revision); }
+.dmec-note { display: block; color: var(--muted); font-size: 0.6rem; margin-top: 3px; }
+.dmec-alert { border: 1px solid var(--rose); border-left: 6px solid var(--rose); background: var(--danger-soft); border-radius: 12px; padding: 16px; }
+.dmec-alert.dmec-alert-clear { border-color: var(--green); border-left-color: var(--green); background: var(--soft); }
+.dmec-pending { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.dmec-pending-item { display: flex; gap: 10px; align-items: flex-start; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--rose); border-radius: 10px; padding: 10px 12px; }
+.dmec-pending-item.dmec-active { border-left-color: var(--blue); }
+.dmec-pending-text strong { display: block; font-size: 0.85rem; letter-spacing: 0.03em; }
+.dmec-pending-text small { color: var(--muted); font-size: 0.68rem; }
+.dmec-clear { margin: 0; font-size: 0.85rem; }
+.dmec-directive { margin: 14px 0 0; font-size: 0.8rem; line-height: 1.6; border-top: 1px dashed var(--line); padding-top: 12px; }
+.dmec-bar { margin-top: 12px; height: 8px; border-radius: 999px; background: var(--soft); overflow: hidden; }
+.dmec-bar i { display: block; height: 100%; background: var(--green); }
+.dmec-list { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 0.82rem; }
+.dmec-list small { color: var(--muted); }
+.dmec-assessment { margin: 0; font-size: 0.86rem; line-height: 1.65; }
+.dmec-empty { margin: 0; color: var(--muted); font-size: 0.82rem; }
+.dmec-sign { margin-top: 30px; border-top: 2px double var(--line); padding-top: 18px; text-align: center; }
+.dmec-issued { margin: 0; font-size: 0.62rem; letter-spacing: 0.18em; color: var(--muted); }
+.dmec-authority { margin: 6px 0 16px; font-weight: 700; font-size: 0.82rem; line-height: 1.5; }
+.dmec-signatories { display: grid; gap: 18px 12px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+.dmec-signatories span { border-top: 1px solid var(--ink); padding-top: 6px; font-size: 0.7rem; letter-spacing: 0.08em; }
+.dmec-docid { margin: 18px 0 0; font-size: 0.62rem; letter-spacing: 0.14em; color: var(--muted); }
+.dmec-carry { margin-top: 22px; border: 1px solid var(--line); border-radius: 12px; padding: 16px; background: var(--surface); }
+.dmec-carry h3 { margin: 0 0 6px; font-size: 0.82rem; letter-spacing: 0.12em; text-transform: uppercase; }
+.dmec-carry-note { margin: 0 0 12px; font-size: 0.74rem; color: var(--muted); }
+.dmec-carry ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.dmec-carry-item { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.dmec-carry-item small { display: block; color: var(--muted); font-size: 0.68rem; }
+.dmec-carry-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.dmec-carry-accepted { border-left: 4px solid var(--green); }
+.dmec-carry-rescheduled { border-left: 4px solid var(--revision); }
+.dmec-carry-dismissed { opacity: 0.6; }
+.dmec-archive { margin-top: 22px; }
+.dmec-archive h3 { font-size: 0.82rem; letter-spacing: 0.12em; text-transform: uppercase; }
+.dmec-history { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.dmec-history button { width: 100%; text-align: left; display: grid; gap: 2px; background: var(--panel); color: inherit; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; cursor: pointer; }
+.dmec-history span { font-size: 0.72rem; color: var(--muted); }
+.dmec-history small { font-size: 0.62rem; color: var(--muted); letter-spacing: 0.08em; }
+
+@media (max-width: 640px) {
+  .dmec-doc { padding: 18px 12px; }
+  .dmec-carry-item { flex-direction: column; align-items: stretch; }
+}
+
+@media print {
+  body.dmec-printing { background: #fff; }
+  body.dmec-printing .mission-sidebar,
+  body.dmec-printing .app-topbar,
+  body.dmec-printing .hero,
+  body.dmec-printing .dmec-controls,
+  body.dmec-printing .dmec-carry,
+  body.dmec-printing .dmec-archive,
+  body.dmec-printing .panel-header,
+  body.dmec-printing > .app-shell > section:not(#circular) { display: none !important; }
+  body.dmec-printing .app-shell { display: block; padding: 0; margin: 0; }
+  body.dmec-printing .dmec-doc { border: none; box-shadow: none; }
+}
