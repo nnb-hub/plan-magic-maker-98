@@ -3812,10 +3812,10 @@ function circularMarkup(report) {
       </section>
 
       <section class="dmec-block dmec-alert ${pending.length ? "" : "dmec-alert-clear"}">
-        <h3>3. ⚠️ Pending / Unexecuted Missions</h3>
+        <h3>3. &#9888; Pending / Unexecuted Missions</h3>
         ${pending.length ? `<ul class="dmec-pending">
           ${pending.map((mission) => `<li class="dmec-pending-item dmec-${circularStatusClass(mission.status)}">
-            <span class="dmec-pending-icon">${mission.status === "IN PROGRESS" ? "⏳" : "❌"}</span>
+            <span class="dmec-pending-icon" aria-hidden="true">${mission.status === "IN PROGRESS" ? "&#9203;" : "&#10007;"}</span>
             <span class="dmec-pending-text"><strong>${escapeHtml(mission.subject.toUpperCase())} — ${escapeHtml(mission.topic.toUpperCase())}</strong>
             <small>${escapeHtml(mission.activityType)} · planned ${escapeHtml(mission.time)} · ${mission.status}</small></span>
           </li>`).join("")}
@@ -3838,7 +3838,7 @@ function circularMarkup(report) {
       ${rescheduled.length ? `<section class="dmec-block">
         <h3>5. Rescheduled Missions</h3>
         <ul class="dmec-list">
-          ${rescheduled.map((mission) => `<li>↪ ${escapeHtml(mission.subject)} — ${escapeHtml(mission.topic)} <small>${escapeHtml(mission.note || "moved by user decision")}</small></li>`).join("")}
+          ${rescheduled.map((mission) => `<li><span aria-hidden="true">&#8618;</span> ${escapeHtml(mission.subject)} — ${escapeHtml(mission.topic)} <small>${escapeHtml(mission.note || "moved by user decision")}</small></li>`).join("")}
         </ul>
       </section>` : ""}
 

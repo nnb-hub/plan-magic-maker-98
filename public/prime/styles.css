@@ -3227,3 +3227,9 @@ body:not(.dark-mode) .plan-row .pill { border: 0; box-shadow: none; }
   body.dmec-printing .app-shell { display: block; padding: 0; margin: 0; }
   body.dmec-printing .dmec-doc { border: none; box-shadow: none; }
 }
+
+.dmec-pending-icon { font-size: 1rem; line-height: 1.2; color: var(--rose); font-weight: 800; }
+.dmec-pending-item.dmec-active .dmec-pending-icon { color: var(--blue); }
+.dmec-history button { background: var(--panel); color: var(--ink); font-weight: 500; box-shadow: none; }
+.dmec-history button:hover { border-color: var(--green); }
+.dmec-history button strong { font-size: 0.9rem; color: var(--ink); }
