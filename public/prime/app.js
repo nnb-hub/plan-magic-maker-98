@@ -904,7 +904,7 @@ function renderStats() {
   if (els.dashboardBacklogCount) els.dashboardBacklogCount.textContent = backlogCount;
   if (els.backlogCoveredBtn) els.backlogCoveredBtn.disabled = backlogCount <= 0;
   if (els.dashboardDailyCompletion) els.dashboardDailyCompletion.textContent = `${dailyCompletion}%`;
-  if (els.dashboardCurrentFocus) els.dashboardCurrentFocus.textContent = activePlan ? `${activePlan.activityType || "Study"} � ${activePlan.subject}` : "Set mission";
+  if (els.dashboardCurrentFocus) els.dashboardCurrentFocus.textContent = activePlan ? `${activePlan.activityType || "Study"} · ${activePlan.subject}` : "Set mission";
   if (els.dashboardMainSubject) els.dashboardMainSubject.textContent = activePlan?.topic || activePlan?.task || "Not set";
   if (els.missionDay) els.missionDay.textContent = missionDay;
   if (els.missionTodayPriority) els.missionTodayPriority.textContent = activePlan ? `${activePlan.subject}: ${activePlan.task}` : "No timetable yet. Create today's battle plan.";
@@ -921,7 +921,7 @@ function renderDailyCommandCenter() {
   if (els.priorityTask) els.priorityTask.textContent = nextPlan?.task || "Set your first task";
   if (els.priorityMeta) {
     els.priorityMeta.textContent = nextPlan
-      ? `${nextPlan.subject} · ${nextPlan.time}${nextPlan.done ? " · Completed—choose tomorrow’s first task." : " · Your next clear action."}`
+      ? `${nextPlan.subject} Â· ${nextPlan.time}${nextPlan.done ? " Â· Completedâchoose tomorrowâs first task." : " Â· Your next clear action."}`
       : "Add a task to the timetable and it will appear here.";
   }
 }
@@ -975,7 +975,7 @@ function renderFocusDeck() {
     .filter((plan) => plan.date === todayKey() && !plan.archived && !plan.canceled)
     .sort((a, b) => a.time.localeCompare(b.time));
   const nextPlan = todayPlans.find((plan) => !plan.done) || todayPlans.at(-1);
-  const status = state.liveSession.status === "running" ? "In deep work" : state.liveSession.status === "paused" ? "Paused—return when ready." : "Ready when you are.";
+  const status = state.liveSession.status === "running" ? "In deep work" : state.liveSession.status === "paused" ? "Pausedâreturn when ready." : "Ready when you are.";
   els.focusDeckSubject.textContent = nextPlan?.subject || "Your next task";
   els.focusDeckTask.textContent = nextPlan?.task || "Choose one clear action and begin.";
   els.focusDeckTimer.textContent = formatClock(getLiveStudyMs());
@@ -1322,7 +1322,7 @@ function renderMocks() {
   els.mockList.innerHTML = [...state.mocks].slice(-5).reverse().map((mock) => `
     <div class="mini-item">
       <span>
-        ${escapeHtml(mock.name || "Test")} · ${mock.score}/${mock.total || 720} - ${getMockPercent(mock)}%
+        ${escapeHtml(mock.name || "Test")} Â· ${mock.score}/${mock.total || 720} - ${getMockPercent(mock)}%
         <small>${getMockProjectedScore(mock)}/720 equivalent - ${mock.mistakes || 0} mistakes - ${escapeHtml(mock.mistakeType || "Mixed mistakes")} - ${escapeHtml(mock.weakArea || "No weak area saved")} - ${formatMockDate(mock.date)}${formatSubjectBreakdown(mock)}</small>
       </span>
       <button class="text-button" type="button" data-mock-delete="${mock.id}">Remove</button>
@@ -1351,11 +1351,11 @@ function renderMockSubjectInsights() {
   const strongest = [...tracked].sort((a, b) => b.average - a.average)[0];
   const focus = [...tracked].sort((a, b) => a.average - b.average)[0];
   els.mockSubjectInsights.innerHTML = `
-    <div class="subject-analysis-header"><div><p class="eyebrow">Subject Analysis</p><h3>Where to push next</h3></div><span>Strongest: ${strongest.subject} · Focus: ${focus.subject}</span></div>
+    <div class="subject-analysis-header"><div><p class="eyebrow">Subject Analysis</p><h3>Where to push next</h3></div><span>Strongest: ${strongest.subject} Â· Focus: ${focus.subject}</span></div>
     <div class="subject-analysis-grid">
       ${subjectData.map((item) => item.average === null
         ? `<div class="subject-analysis-card muted"><strong>${item.subject}</strong><span>No split logged yet</span></div>`
-        : `<div class="subject-analysis-card"><strong>${item.subject}</strong><b>${item.average}%</b><span>${item.entries.length} test${item.entries.length === 1 ? "" : "s"} · ${item.trend === null ? "Add another for trend" : `${item.trend > 0 ? "+" : ""}${item.trend}% vs last`}</span><div class="subject-analysis-track"><i style="width:${item.average}%"></i></div></div>`
+        : `<div class="subject-analysis-card"><strong>${item.subject}</strong><b>${item.average}%</b><span>${item.entries.length} test${item.entries.length === 1 ? "" : "s"} Â· ${item.trend === null ? "Add another for trend" : `${item.trend > 0 ? "+" : ""}${item.trend}% vs last`}</span><div class="subject-analysis-track"><i style="width:${item.average}%"></i></div></div>`
       ).join("")}
     </div>
     <p class="subject-analysis-action">${focus.subject} is your current focus subject. Review its latest errors, then plan a short targeted practice block before the next test.</p>
@@ -1365,7 +1365,7 @@ function renderMockSubjectInsights() {
 function formatSubjectBreakdown(mock) {
   const entries = Object.entries(mock.subjectBreakdown || {});
   if (!entries.length) return "";
-  return ` · ${entries.map(([subject, item]) => `${subject.slice(0, 3)} ${item.score}/${item.total}`).join(" · ")}`;
+  return ` Â· ${entries.map(([subject, item]) => `${subject.slice(0, 3)} ${item.score}/${item.total}`).join(" Â· ")}`;
 }
 
 function renderMockInsights() {
@@ -1541,13 +1541,13 @@ function getActivityIcon(activityType) {
 
 function getPlanIcon(subject) {
   return {
-    Physics: "⚛",
-    Chemistry: "⚗",
-    Botany: "🌿",
-    Zoology: "🧬",
-    Revision: "↻",
-    "Mock Test": "📝"
-  }[subject] || "•";
+    Physics: "â",
+    Chemistry: "â",
+    Botany: "ð¿",
+    Zoology: "ð§¬",
+    Revision: "â»",
+    "Mock Test": "ð"
+  }[subject] || "â¢";
 }
 
 function renderPlanActions(row) {
@@ -1630,10 +1630,10 @@ function renderWeeklyReport() {
     els.weeklyReportAction.textContent = consistency < 50
       ? "Recommendation: protect one non-negotiable study block each day next week."
       : completion < 70
-        ? "Recommendation: reduce tomorrow’s plan slightly and finish every listed task."
+        ? "Recommendation: reduce tomorrowâs plan slightly and finish every listed task."
         : weakResolved === 0
           ? "Recommendation: turn one repeated weak area into a revision task this week."
-          : "Recommendation: you are building steady momentum—keep the same rhythm next week.";
+          : "Recommendation: you are building steady momentumâkeep the same rhythm next week.";
   }
 }
 
@@ -1734,14 +1734,14 @@ function getPlanTimingClass(row) {
 }
 
 function getPlanStateLabel(row) {
-  if (row.canceled) return "🔴 Mission Aborted";
-  if (hasActivePlanBreak(row)) return "🟡 Mission Paused";
-  if (row.done) return "🟢 Mission Accomplished";
+  if (row.canceled) return "ð´ Mission Aborted";
+  if (hasActivePlanBreak(row)) return "ð¡ Mission Paused";
+  if (row.done) return "ð¢ Mission Accomplished";
   const timingClass = getPlanTimingClass(row);
-  if (timingClass === "missed") return "⚪ Mission Missed";
-  if (timingClass === "late") return "🟠 Mission Active";
-  if (timingClass === "on-time") return "🟢 Mission Active";
-  return "🔵 Mission Planned";
+  if (timingClass === "missed") return "âª Mission Missed";
+  if (timingClass === "late") return "ð  Mission Active";
+  if (timingClass === "on-time") return "ð¢ Mission Active";
+  return "ðµ Mission Planned";
 }
 
 function getPlanTimingText(row) {
@@ -3686,7 +3686,7 @@ function circularBuildReport(date) {
       .sort((a, b) => b.minutes - a.minutes),
     carryForward: pending.map((mission) => ({
       planId: mission.id,
-      label: `${mission.subject} — ${mission.topic}`,
+      label: `${mission.subject} â ${mission.topic}`,
       activityType: mission.activityType,
       time: mission.time,
       subject: mission.subject,
@@ -3769,10 +3769,10 @@ function circularMarkup(report) {
           <span><small>MISSION CODE</small><strong>${escapeHtml(report.missionCode)}</strong></span>
           <span><small>DATE</small><strong>${escapeHtml(circularLongDate(report.date))}</strong></span>
           <span><small>OPERATION</small><strong>${escapeHtml(report.operation)}</strong></span>
-          <span><small>CLASSIFICATION</small><strong>OFFICIAL — HEADQUARTERS</strong></span>
+          <span><small>CLASSIFICATION</small><strong>OFFICIAL â HEADQUARTERS</strong></span>
           <span><small>DOCUMENT ID</small><strong>${escapeHtml(report.documentId)}</strong></span>
         </div>
-        <p class="dmec-stamp">${report.finalized ? `FINALISED ${new Date(report.finalizedAt || report.generatedAt).toLocaleString()}` : "DRAFT — NOT YET FINALISED"}</p>
+        <p class="dmec-stamp">${report.finalized ? `FINALISED ${new Date(report.finalizedAt || report.generatedAt).toLocaleString()}` : "DRAFT â NOT YET FINALISED"}</p>
       </header>
 
       <section class="dmec-block">
@@ -3803,7 +3803,7 @@ function circularMarkup(report) {
                   <td>${escapeHtml(mission.subject)}</td>
                   <td>${escapeHtml(mission.topic)}</td>
                   <td>${escapeHtml(mission.activityType)}</td>
-                  <td>${mission.executedMinutes ? circularMinutesLabel(mission.executedMinutes) : "—"}</td>
+                  <td>${mission.executedMinutes ? circularMinutesLabel(mission.executedMinutes) : "â"}</td>
                   <td><span class="dmec-status dmec-${circularStatusClass(mission.status)}">${mission.status}</span>${mission.unverified ? '<small class="dmec-note">marked done, no session log</small>' : ""}</td>
                 </tr>`).join("")}
             </tbody>
@@ -3816,10 +3816,10 @@ function circularMarkup(report) {
         ${pending.length ? `<ul class="dmec-pending">
           ${pending.map((mission) => `<li class="dmec-pending-item dmec-${circularStatusClass(mission.status)}">
             <span class="dmec-pending-icon" aria-hidden="true">${mission.status === "IN PROGRESS" ? "&#9203;" : "&#10007;"}</span>
-            <span class="dmec-pending-text"><strong>${escapeHtml(mission.subject.toUpperCase())} — ${escapeHtml(mission.topic.toUpperCase())}</strong>
-            <small>${escapeHtml(mission.activityType)} · planned ${escapeHtml(mission.time)} · ${mission.status}</small></span>
+            <span class="dmec-pending-text"><strong>${escapeHtml(mission.subject.toUpperCase())} â ${escapeHtml(mission.topic.toUpperCase())}</strong>
+            <small>${escapeHtml(mission.activityType)} Â· planned ${escapeHtml(mission.time)} Â· ${mission.status}</small></span>
           </li>`).join("")}
-        </ul>` : `<p class="dmec-clear">✅ No pending missions. Every scheduled mission was executed or formally rescheduled.</p>`}
+        </ul>` : `<p class="dmec-clear">â No pending missions. Every scheduled mission was executed or formally rescheduled.</p>`}
         <p class="dmec-directive">${escapeHtml(report.directive)}</p>
       </section>
 
@@ -3838,7 +3838,7 @@ function circularMarkup(report) {
       ${rescheduled.length ? `<section class="dmec-block">
         <h3>5. Rescheduled Missions</h3>
         <ul class="dmec-list">
-          ${rescheduled.map((mission) => `<li><span aria-hidden="true">&#8618;</span> ${escapeHtml(mission.subject)} — ${escapeHtml(mission.topic)} <small>${escapeHtml(mission.note || "moved by user decision")}</small></li>`).join("")}
+          ${rescheduled.map((mission) => `<li><span aria-hidden="true">&#8618;</span> ${escapeHtml(mission.subject)} â ${escapeHtml(mission.topic)} <small>${escapeHtml(mission.note || "moved by user decision")}</small></li>`).join("")}
         </ul>
       </section>` : ""}
 
@@ -3860,7 +3860,7 @@ function circularMarkup(report) {
         <div class="dmec-signatories">
           <span>Chairman</span><span>Chief Executive Officer</span><span>Chief Strategic Officer</span><span>Board Secretary</span>
         </div>
-        <p class="dmec-docid">${escapeHtml(report.documentId)} · ${escapeHtml(report.missionCode)}</p>
+        <p class="dmec-docid">${escapeHtml(report.documentId)} Â· ${escapeHtml(report.missionCode)}</p>
       </footer>
     </div>`;
 }
@@ -3874,10 +3874,10 @@ function circularCarryForwardMarkup(report) {
       <p class="dmec-carry-note">Recommended for next planning cycle. Nothing is added to your timetable until you accept it.</p>
       <ul>
         ${items.map((item) => `<li class="dmec-carry-item dmec-carry-${item.decision}">
-          <div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.activityType)} · was planned ${escapeHtml(item.time)}${item.decision !== "recommended" ? ` · ${item.decision.toUpperCase()}${item.newDate ? ` → ${escapeHtml(item.newDate)}` : ""}` : ""}</small></div>
+          <div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.activityType)} Â· was planned ${escapeHtml(item.time)}${item.decision !== "recommended" ? ` Â· ${item.decision.toUpperCase()}${item.newDate ? ` â ${escapeHtml(item.newDate)}` : ""}` : ""}</small></div>
           <div class="dmec-carry-actions">
             <button type="button" data-dmec-accept="${escapeHtml(item.planId)}">Accept for tomorrow</button>
-            <button type="button" class="secondary-button" data-dmec-reschedule="${escapeHtml(item.planId)}">Reschedule…</button>
+            <button type="button" class="secondary-button" data-dmec-reschedule="${escapeHtml(item.planId)}">Rescheduleâ¦</button>
             <button type="button" class="text-button" data-dmec-dismiss="${escapeHtml(item.planId)}">Dismiss</button>
           </div>
         </li>`).join("")}
@@ -4068,3 +4068,19 @@ function circularPrint() {
 }
 
 circularSetup();
+const executiveCircularBtn = document.querySelector("#executiveCircularBtn");
+const circularSection = document.querySelector("#circular");
+
+if (executiveCircularBtn && circularSection) {
+  executiveCircularBtn.addEventListener("click", () => {
+    circularSection.hidden = !circularSection.hidden;
+
+    if (!circularSection.hidden) {
+      renderCircular();
+      circularSection.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    }
+  });
+}
