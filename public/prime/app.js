@@ -3522,3 +3522,549 @@ initializeCloudSync();
 registerServiceWorker().then(scheduleStudyNotifications);
 startLiveSessionTicker();
 render();
+
+/* ==========================================================
+   DAILY MISSION EXECUTION CIRCULAR
+   Read-only report layer built on existing timetable/session
+   data. It never mutates sessions or historical study time.
+   ========================================================== */
+
+let circularOpenId = null;
+let circularPreview = null;
+
+function circularMissionDayFor(date) {
+  const start = new Date(`${state.missionStartDate || defaultState.missionStartDate}T00:00:00`);
+  const day = new Date(`${date}T00:00:00`);
+  const diff = Math.floor((day - start) / 86400000) + 1;
+  return Number.isFinite(diff) ? Math.max(diff, 1) : 1;
+}
+
+function circularPad(day) {
+  return String(day).padStart(3, "0");
+}
+
+function circularMissionCode(missionDay, date) {
+  const yy = String(new Date(`${date}T00:00:00`).getFullYear()).slice(-2);
+  return `PP-${yy}-${circularPad(missionDay)}`;
+}
+
+function circularDocumentId(missionDay, date) {
+  const year = new Date(`${date}T00:00:00`).getFullYear();
+  return `HQ-DMEC-${year}-${circularPad(missionDay)}`;
+}
+
+function circularMinutesLabel(minutes) {
+  const safe = Math.max(0, Math.round(minutes || 0));
+  const hours = Math.floor(safe / 60);
+  const rest = safe % 60;
+  if (hours && rest) return `${hours}h ${String(rest).padStart(2, "0")}m`;
+  if (hours) return `${hours}h 00m`;
+  return `${rest}m`;
+}
+
+function circularLongDate(date) {
+  return new Date(`${date}T00:00:00`).toLocaleDateString(undefined, {
+    weekday: "long", day: "numeric", month: "long", year: "numeric"
+  });
+}
+
+function circularPlannedMinutes(plan, dayPlans) {
+  if (plan.plannedMinutes) return Math.max(0, Number(plan.plannedMinutes) || 0);
+  if (plan.startTime && plan.plannedEndTime) {
+    const diff = timeToMinutes(plan.plannedEndTime) - timeToMinutes(plan.startTime);
+    if (diff > 0) return diff;
+  }
+  const sorted = [...dayPlans].sort((a, b) => String(a.time).localeCompare(String(b.time)));
+  const index = sorted.findIndex((item) => item.id === plan.id);
+  const next = sorted[index + 1];
+  if (next) {
+    const gap = timeToMinutes(next.time) - timeToMinutes(plan.time);
+    if (gap > 0) return Math.min(Math.max(gap, 30), 180);
+  }
+  return 60;
+}
+
+function circularExecutedMinutes(plan) {
+  const logged = (plan.sessionLogs || []).reduce((total, log) => total + Math.max(0, Number(log.duration) || 0), 0);
+  if (logged) return logged;
+  if (plan.totalDuration) return Math.max(0, Number(plan.totalDuration) || 0);
+  return getPlanDurationMinutes(plan);
+}
+
+function circularPlanStatus(plan, executed, date) {
+  if (plan.rescheduledTo || plan.reschedule === true || (plan.canceled && /reschedul/i.test(plan.cancelReason || ""))) return "RESCHEDULED";
+  if (plan.canceled) return "MISSED";
+  if (plan.done) return "COMPLETED";
+  if (plan.login && !plan.logoff) return date === todayKey() ? "IN PROGRESS" : "INCOMPLETE";
+  if (executed > 0) return "INCOMPLETE";
+  return "MISSED";
+}
+
+function circularBuildReport(date) {
+  const missionDay = circularMissionDayFor(date);
+  const dayPlans = state.timetable
+    .filter((plan) => plan.date === date && !plan.archived)
+    .sort((a, b) => String(a.time).localeCompare(String(b.time)));
+
+  const missions = dayPlans.map((plan) => {
+    const executed = circularExecutedMinutes(plan);
+    const status = circularPlanStatus(plan, executed, date);
+    return {
+      id: plan.id,
+      time: plan.time || "--:--",
+      subject: plan.subject || "General",
+      topic: plan.topic || plan.task || "Untitled mission",
+      activityType: plan.activityType || "Study",
+      plannedMinutes: circularPlannedMinutes(plan, dayPlans),
+      executedMinutes: executed,
+      status,
+      unverified: status === "COMPLETED" && executed === 0,
+      note: plan.canceled ? (plan.cancelReason || "") : ""
+    };
+  });
+
+  const analytics = getActivityAnalytics([date]);
+  const breakMs = typeof getTimetableBreakMs === "function" ? getTimetableBreakMs(date) : 0;
+  const productivity = analytics.total + breakMs
+    ? Math.round((analytics.total / (analytics.total + breakMs)) * 100)
+    : 0;
+
+  const subjectMinutes = {};
+  state.sessions
+    .filter((session) => session.date === date && !session.canceled)
+    .forEach((session) => {
+      const minutes = Math.round(Math.max(0, Number(session.hours) || 0) * 60);
+      if (!minutes) return;
+      const subject = session.subject || "General";
+      subjectMinutes[subject] = (subjectMinutes[subject] || 0) + minutes;
+    });
+  missions.forEach((mission) => {
+    if (!Object.keys(subjectMinutes).length && mission.executedMinutes) {
+      subjectMinutes[mission.subject] = (subjectMinutes[mission.subject] || 0) + mission.executedMinutes;
+    }
+  });
+
+  const plannedMinutes = missions.reduce((total, mission) => total + mission.plannedMinutes, 0);
+  const executedMinutes = Math.max(
+    missions.reduce((total, mission) => total + mission.executedMinutes, 0),
+    Math.round(analytics.total / 60000)
+  );
+  const completed = missions.filter((mission) => mission.status === "COMPLETED");
+  const rescheduled = missions.filter((mission) => mission.status === "RESCHEDULED");
+  const pending = missions.filter((mission) => !["COMPLETED", "RESCHEDULED"].includes(mission.status));
+
+  return {
+    version: 1,
+    date,
+    missionDay,
+    missionCode: circularMissionCode(missionDay, date),
+    documentId: circularDocumentId(missionDay, date),
+    operation: "INVICTUS IGNIS",
+    generatedAt: new Date().toISOString(),
+    finalized: false,
+    summary: {
+      classMinutes: Math.round(analytics.Class / 60000),
+      studyMinutes: Math.round(analytics.Study / 60000),
+      questionMinutes: Math.round(analytics["Question Practice"] / 60000),
+      mockMinutes: Math.round(analytics["Mock Test"] / 60000),
+      totalMinutes: Math.round(analytics.total / 60000),
+      breakMinutes: Math.round(breakMs / 60000),
+      productivity,
+      plannedCount: missions.length,
+      completedCount: completed.length,
+      incompleteCount: pending.length,
+      rescheduledCount: rescheduled.length
+    },
+    missions,
+    pending: pending.map((mission) => mission.id),
+    plannedMinutes,
+    executedMinutes,
+    unexecutedMinutes: Math.max(0, plannedMinutes - executedMinutes),
+    executionRate: plannedMinutes ? Math.round((executedMinutes / plannedMinutes) * 100) : 0,
+    subjects: Object.entries(subjectMinutes)
+      .map(([subject, minutes]) => ({ subject, minutes }))
+      .sort((a, b) => b.minutes - a.minutes),
+    carryForward: pending.map((mission) => ({
+      planId: mission.id,
+      label: `${mission.subject} — ${mission.topic}`,
+      activityType: mission.activityType,
+      time: mission.time,
+      subject: mission.subject,
+      topic: mission.topic,
+      decision: "recommended"
+    })),
+    directive: circularDirective(missions, pending, rescheduled, missionDay),
+    assessment: circularAssessment(missions, completed, pending, plannedMinutes, executedMinutes)
+  };
+}
+
+function circularDirective(missions, pending, rescheduled, missionDay) {
+  if (!missions.length) {
+    return `CSO DIRECTIVE: No missions were scheduled for Mission Day ${missionDay}. Plan the next cycle in the Timetable Planner so execution can be measured.`;
+  }
+  if (!pending.length) {
+    return `CSO DIRECTIVE: All scheduled missions for Mission Day ${missionDay} were executed${rescheduled.length ? ` (${rescheduled.length} formally rescheduled)` : ""}. Maintain the same planning load for the next cycle.`;
+  }
+  return `CSO DIRECTIVE: ${pending.length} mission${pending.length === 1 ? " was" : "s were"} scheduled but not completed during Mission Day ${missionDay}. These missions should be prioritised during the next planning cycle before additional workload is added.`;
+}
+
+function circularAssessment(missions, completed, pending, plannedMinutes, executedMinutes) {
+  if (!missions.length) return "No planned missions on record for this day. Assessment not applicable.";
+  const rate = plannedMinutes ? Math.round((executedMinutes / plannedMinutes) * 100) : 0;
+  if (!pending.length) return `Strong execution. ${completed.length} of ${missions.length} planned missions were completed with minimal carry-forward (execution rate ${rate}%).`;
+  if (completed.length >= pending.length) return `Solid execution. ${completed.length} of ${missions.length} planned missions were completed (execution rate ${rate}%). Close out the highlighted pending missions in the next cycle.`;
+  return `Execution was below the planned workload: ${completed.length} of ${missions.length} missions completed (execution rate ${rate}%). Priority should be given to the highlighted pending missions during the next planning cycle.`;
+}
+
+function circularStoredFor(date) {
+  return (state.dailyReports || []).find((report) => report.date === date) || null;
+}
+
+function circularSaveReport(report) {
+  const reports = Array.isArray(state.dailyReports) ? [...state.dailyReports] : [];
+  const index = reports.findIndex((item) => item.date === report.date);
+  if (index >= 0) {
+    reports[index] = { ...reports[index], ...report, carryForward: reports[index].carryForward?.length && report.keepDecisions
+      ? reports[index].carryForward
+      : report.carryForward };
+  } else {
+    reports.push(report);
+  }
+  state.dailyReports = reports.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  saveState();
+}
+
+function circularActiveReport() {
+  if (circularPreview) return circularPreview;
+  if (circularOpenId) {
+    const stored = (state.dailyReports || []).find((report) => report.documentId === circularOpenId);
+    if (stored) return stored;
+  }
+  return circularStoredFor(todayKey()) || circularBuildReport(todayKey());
+}
+
+function circularStatusClass(status) {
+  return {
+    COMPLETED: "ok", "IN PROGRESS": "active", INCOMPLETE: "warn", MISSED: "bad", RESCHEDULED: "moved"
+  }[status] || "warn";
+}
+
+function circularSummaryTile(label, value) {
+  return `<div class="dmec-tile"><span>${label}</span><strong>${value}</strong></div>`;
+}
+
+function circularMarkup(report) {
+  const s = report.summary;
+  const pending = report.missions.filter((mission) => report.pending.includes(mission.id));
+  const rescheduled = report.missions.filter((mission) => mission.status === "RESCHEDULED");
+
+  return `
+    <div class="dmec-doc" id="dmecDoc">
+      <header class="dmec-head">
+        <p class="dmec-org">PROJECT PRIME HEADQUARTERS</p>
+        <p class="dmec-office">OFFICE OF THE CHAIRMAN</p>
+        <h2 class="dmec-title">DAILY MISSION EXECUTION CIRCULAR</h2>
+        <div class="dmec-meta">
+          <span><small>MISSION DAY</small><strong>${report.missionDay}</strong></span>
+          <span><small>MISSION CODE</small><strong>${escapeHtml(report.missionCode)}</strong></span>
+          <span><small>DATE</small><strong>${escapeHtml(circularLongDate(report.date))}</strong></span>
+          <span><small>OPERATION</small><strong>${escapeHtml(report.operation)}</strong></span>
+          <span><small>CLASSIFICATION</small><strong>OFFICIAL — HEADQUARTERS</strong></span>
+          <span><small>DOCUMENT ID</small><strong>${escapeHtml(report.documentId)}</strong></span>
+        </div>
+        <p class="dmec-stamp">${report.finalized ? `FINALISED ${new Date(report.finalizedAt || report.generatedAt).toLocaleString()}` : "DRAFT — NOT YET FINALISED"}</p>
+      </header>
+
+      <section class="dmec-block">
+        <h3>1. Executive Summary</h3>
+        <div class="dmec-tiles">
+          ${circularSummaryTile("CLASS", circularMinutesLabel(s.classMinutes))}
+          ${circularSummaryTile("STUDY / REVISION", circularMinutesLabel(s.studyMinutes))}
+          ${circularSummaryTile("QUESTION PRACTICE", circularMinutesLabel(s.questionMinutes))}
+          ${circularSummaryTile("MOCK TEST", circularMinutesLabel(s.mockMinutes))}
+          ${circularSummaryTile("TOTAL PRODUCTIVE", circularMinutesLabel(s.totalMinutes))}
+          ${circularSummaryTile("PRODUCTIVITY", `${s.productivity}%`)}
+          ${circularSummaryTile("PLANNED MISSIONS", s.plannedCount)}
+          ${circularSummaryTile("COMPLETED", s.completedCount)}
+          ${circularSummaryTile("INCOMPLETE", s.incompleteCount)}
+        </div>
+      </section>
+
+      <section class="dmec-block">
+        <h3>2. Mission Execution Report</h3>
+        ${report.missions.length ? `
+        <div class="dmec-table-wrap">
+          <table class="dmec-table">
+            <thead><tr><th>Planned</th><th>Department</th><th>Mission</th><th>Type</th><th>Actual</th><th>Status</th></tr></thead>
+            <tbody>
+              ${report.missions.map((mission) => `
+                <tr>
+                  <td>${escapeHtml(mission.time)}</td>
+                  <td>${escapeHtml(mission.subject)}</td>
+                  <td>${escapeHtml(mission.topic)}</td>
+                  <td>${escapeHtml(mission.activityType)}</td>
+                  <td>${mission.executedMinutes ? circularMinutesLabel(mission.executedMinutes) : "—"}</td>
+                  <td><span class="dmec-status dmec-${circularStatusClass(mission.status)}">${mission.status}</span>${mission.unverified ? '<small class="dmec-note">marked done, no session log</small>' : ""}</td>
+                </tr>`).join("")}
+            </tbody>
+          </table>
+        </div>` : `<p class="dmec-empty">No missions were scheduled for this day.</p>`}
+      </section>
+
+      <section class="dmec-block dmec-alert ${pending.length ? "" : "dmec-alert-clear"}">
+        <h3>3. ⚠️ Pending / Unexecuted Missions</h3>
+        ${pending.length ? `<ul class="dmec-pending">
+          ${pending.map((mission) => `<li class="dmec-pending-item dmec-${circularStatusClass(mission.status)}">
+            <span class="dmec-pending-icon">${mission.status === "IN PROGRESS" ? "⏳" : "❌"}</span>
+            <span class="dmec-pending-text"><strong>${escapeHtml(mission.subject.toUpperCase())} — ${escapeHtml(mission.topic.toUpperCase())}</strong>
+            <small>${escapeHtml(mission.activityType)} · planned ${escapeHtml(mission.time)} · ${mission.status}</small></span>
+          </li>`).join("")}
+        </ul>` : `<p class="dmec-clear">✅ No pending missions. Every scheduled mission was executed or formally rescheduled.</p>`}
+        <p class="dmec-directive">${escapeHtml(report.directive)}</p>
+      </section>
+
+      <section class="dmec-block">
+        <h3>4. Planned vs Executed</h3>
+        <div class="dmec-tiles">
+          ${circularSummaryTile("PLANNED", circularMinutesLabel(report.plannedMinutes))}
+          ${circularSummaryTile("EXECUTED", circularMinutesLabel(report.executedMinutes))}
+          ${circularSummaryTile("UNEXECUTED", circularMinutesLabel(report.unexecutedMinutes))}
+          ${circularSummaryTile("EXECUTION RATE", `${report.executionRate}%`)}
+          ${circularSummaryTile("MISSIONS", `${s.completedCount}/${s.plannedCount}`)}
+        </div>
+        <div class="dmec-bar"><i style="width:${Math.min(100, report.executionRate)}%"></i></div>
+      </section>
+
+      ${rescheduled.length ? `<section class="dmec-block">
+        <h3>5. Rescheduled Missions</h3>
+        <ul class="dmec-list">
+          ${rescheduled.map((mission) => `<li>↪ ${escapeHtml(mission.subject)} — ${escapeHtml(mission.topic)} <small>${escapeHtml(mission.note || "moved by user decision")}</small></li>`).join("")}
+        </ul>
+      </section>` : ""}
+
+      <section class="dmec-block">
+        <h3>${rescheduled.length ? 6 : 5}. Subject Coverage</h3>
+        ${report.subjects.length ? `<div class="dmec-tiles">
+          ${report.subjects.map((entry) => circularSummaryTile(escapeHtml(entry.subject.toUpperCase()), circularMinutesLabel(entry.minutes))).join("")}
+        </div>` : `<p class="dmec-empty">No recorded study time for this day.</p>`}
+      </section>
+
+      <section class="dmec-block">
+        <h3>${rescheduled.length ? 7 : 6}. Headquarters Assessment</h3>
+        <p class="dmec-assessment">${escapeHtml(report.assessment)}</p>
+      </section>
+
+      <footer class="dmec-sign">
+        <p class="dmec-issued">ISSUED BY</p>
+        <p class="dmec-authority">OFFICE OF THE CHAIRMAN<br />PROJECT PRIME HEADQUARTERS</p>
+        <div class="dmec-signatories">
+          <span>Chairman</span><span>Chief Executive Officer</span><span>Chief Strategic Officer</span><span>Board Secretary</span>
+        </div>
+        <p class="dmec-docid">${escapeHtml(report.documentId)} · ${escapeHtml(report.missionCode)}</p>
+      </footer>
+    </div>`;
+}
+
+function circularCarryForwardMarkup(report) {
+  const items = report.carryForward || [];
+  if (!items.length) return "";
+  return `
+    <section class="dmec-carry">
+      <h3>Next-Day Priority / Carry-Forward</h3>
+      <p class="dmec-carry-note">Recommended for next planning cycle. Nothing is added to your timetable until you accept it.</p>
+      <ul>
+        ${items.map((item) => `<li class="dmec-carry-item dmec-carry-${item.decision}">
+          <div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.activityType)} · was planned ${escapeHtml(item.time)}${item.decision !== "recommended" ? ` · ${item.decision.toUpperCase()}${item.newDate ? ` → ${escapeHtml(item.newDate)}` : ""}` : ""}</small></div>
+          <div class="dmec-carry-actions">
+            <button type="button" data-dmec-accept="${escapeHtml(item.planId)}">Accept for tomorrow</button>
+            <button type="button" class="secondary-button" data-dmec-reschedule="${escapeHtml(item.planId)}">Reschedule…</button>
+            <button type="button" class="text-button" data-dmec-dismiss="${escapeHtml(item.planId)}">Dismiss</button>
+          </div>
+        </li>`).join("")}
+      </ul>
+    </section>`;
+}
+
+function circularHistoryMarkup() {
+  const reports = state.dailyReports || [];
+  if (!reports.length) return `<p class="dmec-empty">No circulars filed yet.</p>`;
+  return `<ul class="dmec-history">
+    ${reports.map((report) => `<li>
+      <button type="button" data-dmec-open="${escapeHtml(report.documentId)}">
+        <strong>Mission Day ${report.missionDay}</strong>
+        <span>${escapeHtml(report.missionCode)}</span>
+        <span>${escapeHtml(circularLongDate(report.date))}</span>
+        <small>${escapeHtml(report.documentId)}</small>
+      </button>
+    </li>`).join("")}
+  </ul>`;
+}
+
+function renderCircular() {
+  const host = document.querySelector("#circularRoot");
+  if (!host) return;
+  const report = circularActiveReport();
+  const todayStored = circularStoredFor(todayKey());
+
+  host.innerHTML = `
+    <div class="panel-header">
+      <div>
+        <p class="eyebrow">Headquarters</p>
+        <h2>Daily Mission Execution Circular</h2>
+      </div>
+      <div class="dmec-controls">
+        <button type="button" data-dmec-end>${todayStored?.finalized ? "Re-finalise Mission Day" : "End Mission Day"}</button>
+        <button type="button" class="secondary-button" data-dmec-generate>Generate Daily Circular</button>
+        <button type="button" class="secondary-button" data-dmec-print>Download PDF / Print</button>
+      </div>
+    </div>
+    ${circularMarkup(report)}
+    ${circularCarryForwardMarkup(report)}
+    <section class="dmec-archive">
+      <h3>Daily Reports / Mission History</h3>
+      ${circularHistoryMarkup()}
+    </section>`;
+}
+
+function circularUpdateCarryDecision(report, planId, decision, newDate) {
+  const stored = circularStoredFor(report.date);
+  const target = stored || report;
+  target.carryForward = (target.carryForward || []).map((item) => (item.planId === planId
+    ? { ...item, decision, newDate: newDate || item.newDate }
+    : item));
+  if (!stored) {
+    circularPreview = target;
+  } else {
+    circularSaveReport({ ...target, keepDecisions: false });
+  }
+}
+
+function circularCarryItem(report, planId) {
+  return (report.carryForward || []).find((item) => item.planId === planId);
+}
+
+function circularClonePlanTo(item, date) {
+  const source = state.timetable.find((plan) => plan.id === item.planId);
+  const exists = state.timetable.some((plan) => plan.date === date
+    && plan.time === item.time
+    && (plan.topic || plan.task) === item.topic
+    && plan.subject === item.subject);
+  if (exists) return false;
+  state.timetable = [...state.timetable, {
+    id: crypto.randomUUID ? crypto.randomUUID() : `plan-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    date,
+    time: item.time,
+    subject: item.subject,
+    activityType: item.activityType,
+    topic: item.topic,
+    task: item.topic,
+    startTime: item.time,
+    endTime: "",
+    done: false, login: "", logoff: "", canceled: false, cancelReason: "",
+    breaks: [], sessionLogs: [], totalDuration: 0, status: "planned",
+    carriedFrom: source?.date || item.planId
+  }];
+  return true;
+}
+
+function circularSetup() {
+  const host = document.querySelector("#circularRoot");
+  if (!host) return;
+
+  host.addEventListener("click", (event) => {
+    const button = event.target.closest("button");
+    if (!button) return;
+    const report = circularActiveReport();
+
+    if (button.hasAttribute("data-dmec-generate")) {
+      circularPreview = circularBuildReport(circularOpenId ? report.date : todayKey());
+      circularOpenId = null;
+      renderCircular();
+      return;
+    }
+
+    if (button.hasAttribute("data-dmec-end")) {
+      const date = todayKey();
+      const missionDay = circularMissionDayFor(date);
+      if (!window.confirm(`Are you sure you want to finalize Mission Day ${missionDay}?`)) return;
+      const existing = circularStoredFor(date);
+      const fresh = circularBuildReport(date);
+      const finalized = {
+        ...fresh,
+        finalized: true,
+        finalizedAt: new Date().toISOString(),
+        carryForward: existing?.carryForward?.length
+          ? fresh.carryForward.map((item) => existing.carryForward.find((old) => old.planId === item.planId) || item)
+          : fresh.carryForward
+      };
+      circularSaveReport(finalized);
+      circularPreview = null;
+      circularOpenId = finalized.documentId;
+      renderCircular();
+      return;
+    }
+
+    if (button.hasAttribute("data-dmec-print")) {
+      circularPrint();
+      return;
+    }
+
+    const openId = button.dataset.dmecOpen;
+    if (openId) {
+      circularPreview = null;
+      circularOpenId = openId;
+      renderCircular();
+      document.querySelector("#dmecDoc")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    const acceptId = button.dataset.dmecAccept;
+    if (acceptId) {
+      const item = circularCarryItem(report, acceptId);
+      if (!item) return;
+      circularClonePlanTo(item, todayKey(1));
+      circularUpdateCarryDecision(report, acceptId, "accepted", todayKey(1));
+      saveState();
+      render();
+      return;
+    }
+
+    const rescheduleId = button.dataset.dmecReschedule;
+    if (rescheduleId) {
+      const item = circularCarryItem(report, rescheduleId);
+      if (!item) return;
+      const date = window.prompt("Reschedule this mission to which date? (YYYY-MM-DD)", todayKey(1));
+      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+      circularClonePlanTo(item, date);
+      state.timetable = state.timetable.map((plan) => (plan.id === rescheduleId
+        ? { ...plan, rescheduledTo: date }
+        : plan));
+      circularUpdateCarryDecision(report, rescheduleId, "rescheduled", date);
+      saveState();
+      render();
+      return;
+    }
+
+    const dismissId = button.dataset.dmecDismiss;
+    if (dismissId) {
+      circularUpdateCarryDecision(report, dismissId, "dismissed");
+      saveState();
+      renderCircular();
+    }
+  });
+}
+
+function circularPrint() {
+  const doc = document.querySelector("#dmecDoc");
+  if (!doc) return;
+  document.body.classList.add("dmec-printing");
+  const cleanup = () => {
+    document.body.classList.remove("dmec-printing");
+    window.removeEventListener("afterprint", cleanup);
+  };
+  window.addEventListener("afterprint", cleanup);
+  window.print();
+  setTimeout(cleanup, 2000);
+}
+
+circularSetup();
