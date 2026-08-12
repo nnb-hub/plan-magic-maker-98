@@ -3592,7 +3592,7 @@ function circularExecutedMinutes(plan) {
 }
 
 function circularPlanStatus(plan, executed, date) {
-  if (plan.rescheduledTo || plan.reschedule === true || (plan.canceled && /reschedul/i.test(plan.cancelReason || ""))) return "RESCHEDULED";
+  if (plan.hqRescheduledTo || (plan.canceled && /reschedul/i.test(plan.cancelReason || ""))) return "RESCHEDULED";
   if (plan.canceled) return "MISSED";
   if (plan.done) return "COMPLETED";
   if (plan.login && !plan.logoff) return date === todayKey() ? "IN PROGRESS" : "INCOMPLETE";
@@ -4037,7 +4037,7 @@ function circularSetup() {
       if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
       circularClonePlanTo(item, date);
       state.timetable = state.timetable.map((plan) => (plan.id === rescheduleId
-        ? { ...plan, rescheduledTo: date }
+        ? { ...plan, hqRescheduledTo: date }
         : plan));
       circularUpdateCarryDecision(report, rescheduleId, "rescheduled", date);
       saveState();
