@@ -4058,9 +4058,17 @@ function circularSetup() {
 function circularPrint() {
   const doc = document.querySelector("#dmecDoc");
   if (!doc) return;
+  document.querySelector("#dmecPrintLayer")?.remove();
+  const layer = document.createElement("div");
+  layer.id = "dmecPrintLayer";
+  const clone = doc.cloneNode(true);
+  clone.removeAttribute("id");
+  layer.appendChild(clone);
+  document.body.appendChild(layer);
   document.body.classList.add("dmec-printing");
   const cleanup = () => {
     document.body.classList.remove("dmec-printing");
+    document.querySelector("#dmecPrintLayer")?.remove();
     window.removeEventListener("afterprint", cleanup);
   };
   window.addEventListener("afterprint", cleanup);
