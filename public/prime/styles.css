@@ -3230,6 +3230,7 @@ body:not(.dark-mode) .plan-row .pill { border: 0; box-shadow: none; }
   body.dmec-printing #dmecPrintLayer .dmec-controls,
   body.dmec-printing #dmecPrintLayer .dmec-carry,
   body.dmec-printing #dmecPrintLayer .dmec-archive { display: none !important; }
+  body.dmec-printing #dmecPrintLayer .dmec-logo { width: 46px !important; height: 46px !important; }
   body.dmec-printing #dmecPrintLayer .dmec-block,
   body.dmec-printing #dmecPrintLayer .dmec-pending,
   body.dmec-printing #dmecPrintLayer tr { break-inside: avoid; page-break-inside: avoid; }
