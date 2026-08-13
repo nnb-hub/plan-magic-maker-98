@@ -4073,7 +4073,7 @@ function circularPrint() {
   };
   window.addEventListener("afterprint", cleanup);
   window.print();
-  setTimeout(cleanup, 2000);
+  setTimeout(cleanup, 60000);
 }
 
 circularSetup();
