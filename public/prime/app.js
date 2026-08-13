@@ -3761,6 +3761,7 @@ function circularMarkup(report) {
   return `
     <div class="dmec-doc" id="dmecDoc">
       <header class="dmec-head">
+        <img class="dmec-logo" src="assets/logo.png" alt="Project Prime Invictus Ignis emblem" />
         <p class="dmec-org">PROJECT PRIME HEADQUARTERS</p>
         <p class="dmec-office">OFFICE OF THE CHAIRMAN</p>
         <h2 class="dmec-title">DAILY MISSION EXECUTION CIRCULAR</h2>
