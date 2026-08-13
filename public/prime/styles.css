@@ -3233,6 +3233,11 @@ body:not(.dark-mode) .plan-row .pill { border: 0; box-shadow: none; }
   body.dmec-printing .dmec-controls,
   body.dmec-printing .dmec-carry,
   body.dmec-printing .dmec-archive { display: none !important; }
+  body.dmec-printing .app-shell,
+  body.dmec-printing .app-main,
+  body.dmec-printing .mission-sidebar,
+  body.dmec-printing #circular,
+  body.dmec-printing #plannerRoot { position: static !important; overflow: visible !important; height: auto !important; max-height: none !important; transform: none !important; }
 }
 
 .dmec-logo { display: block; width: 54px; height: 54px; margin: 0 auto 10px; border-radius: 14px; object-fit: contain; }
