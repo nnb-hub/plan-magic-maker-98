@@ -3215,18 +3215,27 @@ body:not(.dark-mode) .plan-row .pill { border: 0; box-shadow: none; }
 }
 
 @media print {
-  body.dmec-printing { background: #fff; }
-  body.dmec-printing .mission-sidebar,
-  body.dmec-printing .app-topbar,
-  body.dmec-printing .hero,
+  @page { margin: 12mm; }
+  html, body.dmec-printing { height: auto !important; overflow: visible !important; background: #fff !important; }
+  body.dmec-printing * { visibility: hidden !important; }
+  body.dmec-printing #dmecDoc,
+  body.dmec-printing #dmecDoc * { visibility: visible !important; }
+  body.dmec-printing #dmecDoc {
+    position: absolute !important;
+    inset: 0 auto auto 0;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
   body.dmec-printing .dmec-controls,
   body.dmec-printing .dmec-carry,
-  body.dmec-printing .dmec-archive,
-  body.dmec-printing .panel-header,
-  body.dmec-printing > .app-shell > section:not(#circular) { display: none !important; }
-  body.dmec-printing .app-shell { display: block; padding: 0; margin: 0; }
-  body.dmec-printing .dmec-doc { border: none; box-shadow: none; }
+  body.dmec-printing .dmec-archive { display: none !important; }
 }
+
+.dmec-logo { display: block; width: 54px; height: 54px; margin: 0 auto 10px; border-radius: 14px; object-fit: contain; }
 
 .dmec-pending-icon { font-size: 1rem; line-height: 1.2; color: var(--rose); font-weight: 800; }
 .dmec-pending-item.dmec-active .dmec-pending-icon { color: var(--blue); }
