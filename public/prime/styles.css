@@ -3216,28 +3216,26 @@ body:not(.dark-mode) .plan-row .pill { border: 0; box-shadow: none; }
 
 @media print {
   @page { margin: 12mm; }
-  html, body.dmec-printing { height: auto !important; overflow: visible !important; background: #fff !important; }
-  body.dmec-printing * { visibility: hidden !important; }
-  body.dmec-printing #dmecDoc,
-  body.dmec-printing #dmecDoc * { visibility: visible !important; }
-  body.dmec-printing #dmecDoc {
-    position: absolute !important;
-    inset: 0 auto auto 0;
-    width: 100% !important;
-    max-width: none !important;
-    margin: 0 !important;
+  html, body { height: auto !important; overflow: visible !important; background: #fff !important; }
+  body.dmec-printing > *:not(#dmecPrintLayer) { display: none !important; }
+  body.dmec-printing #dmecPrintLayer { display: block !important; }
+  body.dmec-printing #dmecPrintLayer .dmec-doc {
     border: none !important;
     box-shadow: none !important;
     background: #fff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
   }
-  body.dmec-printing .dmec-controls,
-  body.dmec-printing .dmec-carry,
-  body.dmec-printing .dmec-archive { display: none !important; }
-  body.dmec-printing .app-shell,
-  body.dmec-printing .app-main,
-  body.dmec-printing .mission-sidebar,
-  body.dmec-printing #circular,
-  body.dmec-printing #plannerRoot { position: static !important; overflow: visible !important; height: auto !important; max-height: none !important; transform: none !important; }
+  body.dmec-printing #dmecPrintLayer .dmec-controls,
+  body.dmec-printing #dmecPrintLayer .dmec-carry,
+  body.dmec-printing #dmecPrintLayer .dmec-archive { display: none !important; }
+  body.dmec-printing #dmecPrintLayer .dmec-block,
+  body.dmec-printing #dmecPrintLayer .dmec-pending,
+  body.dmec-printing #dmecPrintLayer tr { break-inside: avoid; page-break-inside: avoid; }
+}
+
+#dmecPrintLayer { display: none; }
 }
 
 .dmec-logo { display: block; width: 54px; height: 54px; margin: 0 auto 10px; border-radius: 14px; object-fit: contain; }
