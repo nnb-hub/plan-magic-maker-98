@@ -3215,18 +3215,31 @@ body:not(.dark-mode) .plan-row .pill { border: 0; box-shadow: none; }
 }
 
 @media print {
-  body.dmec-printing { background: #fff; }
-  body.dmec-printing .mission-sidebar,
-  body.dmec-printing .app-topbar,
-  body.dmec-printing .hero,
-  body.dmec-printing .dmec-controls,
-  body.dmec-printing .dmec-carry,
-  body.dmec-printing .dmec-archive,
-  body.dmec-printing .panel-header,
-  body.dmec-printing > .app-shell > section:not(#circular) { display: none !important; }
-  body.dmec-printing .app-shell { display: block; padding: 0; margin: 0; }
-  body.dmec-printing .dmec-doc { border: none; box-shadow: none; }
+  @page { margin: 12mm; }
+  html, body { height: auto !important; overflow: visible !important; background: #fff !important; }
+  body.dmec-printing > *:not(#dmecPrintLayer) { display: none !important; }
+  body.dmec-printing #dmecPrintLayer { display: block !important; }
+  body.dmec-printing #dmecPrintLayer .dmec-doc {
+    border: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+  }
+  body.dmec-printing #dmecPrintLayer .dmec-controls,
+  body.dmec-printing #dmecPrintLayer .dmec-carry,
+  body.dmec-printing #dmecPrintLayer .dmec-archive { display: none !important; }
+  body.dmec-printing #dmecPrintLayer .dmec-logo { width: 46px !important; height: 46px !important; }
+  body.dmec-printing #dmecPrintLayer .dmec-block,
+  body.dmec-printing #dmecPrintLayer .dmec-pending,
+  body.dmec-printing #dmecPrintLayer tr { break-inside: avoid; page-break-inside: avoid; }
 }
+
+#dmecPrintLayer { display: none; }
+}
+
+.dmec-logo { display: block; width: 54px; height: 54px; margin: 0 auto 10px; border-radius: 14px; object-fit: contain; }
 
 .dmec-pending-icon { font-size: 1rem; line-height: 1.2; color: var(--rose); font-weight: 800; }
 .dmec-pending-item.dmec-active .dmec-pending-icon { color: var(--blue); }
