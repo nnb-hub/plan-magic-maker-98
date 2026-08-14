@@ -3446,8 +3446,17 @@ function plannerSessionCard(plan) {
   const subject = plannerSubjectMeta(plan.subject);
   const stateKey = plannerStateKey(plan);
   const duration = getPlanDuration(plan);
+  const now = Date.now();
+  const verdict = planTimingVerdict(plan);
+  const timingKey = plan.canceled ? "aborted"
+    : planIsRescheduled(plan) && !plan.done ? "resch"
+    : isMissedPlan(plan) ? "missed"
+    : stateKey === "active" || stateKey === "paused" ? "progress"
+    : verdict ? verdict.kind
+    : "upcoming";
+  const activeBreak = activePlanBreak(plan);
   return `
-    <article class="tp-card tp-${stateKey}" data-subject="${subject.key}">
+    <article class="tp-card tp-${stateKey} tp-time-${timingKey}" data-subject="${subject.key}">
       <label class="tp-check">
         <input type="checkbox" data-v3-toggle="${plan.id}" ${plan.done ? "checked" : ""} ${plan.canceled ? "disabled" : ""}>
         <span class="sr-only-label">Mark done</span>
@@ -3462,11 +3471,13 @@ function plannerSessionCard(plan) {
           ${duration ? `<span class="tp-chip tp-chip-duration">&#9201; ${escapeHtml(duration)}</span>` : ""}
         </div>
         <h4 class="tp-topic">${escapeHtml(plan.topic || plan.task || "Untitled session")}</h4>
-        <p class="tp-timing">${escapeHtml(getPlanTimingText(plan))}</p>
+        ${plannerTimingBlock(plan, now)}
+        ${plannerBreakBlock(plan, now)}
         <div class="tp-actions">
           <button type="button" data-v3-login="${plan.id}" ${plan.canceled ? "disabled" : ""}>${plan.login ? "Update In" : "Log In"}</button>
-          <button type="button" data-v3-logoff="${plan.id}" ${plan.canceled ? "disabled" : ""}>${plan.logoff ? "Update Out" : "Log Off"}</button>
-          <button type="button" data-v3-break="${plan.id}" ${plan.canceled || plan.done || hasActivePlanBreak(plan) ? "disabled" : ""}>Break</button>
+          <button type="button" data-v3-logoff="${plan.id}" ${plan.canceled || activeBreak ? "disabled" : ""}>${plan.logoff ? "Update Out" : "Log Off"}</button>
+          <button type="button" data-v3-break="${plan.id}" ${plan.canceled || plan.done || activeBreak ? "disabled" : ""}>Break</button>
+          ${activeBreak ? `<button type="button" class="tp-end-break" data-v3-end-break="${plan.id}">End Break &amp; Resume Mission</button>` : ""}
           <button type="button" class="secondary-button" data-v3-cancel-session="${plan.id}" ${plan.canceled ? "disabled" : ""}>Cancel</button>
           <button type="button" class="secondary-button" data-v3-edit="${plan.id}">Edit</button>
           <button type="button" class="text-button danger-button" data-v3-delete="${plan.id}">Remove</button>
