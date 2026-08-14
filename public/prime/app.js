@@ -3648,17 +3648,21 @@ function renderTimetable() {
     }
     const loginId = button.dataset.v3Login;
     if (loginId) {
-      state.timetable = state.timetable.map((plan) => (plan.id === loginId && !plan.canceled ? { ...plan, login: currentTimeValue(), status: "active" } : plan));
+      const nowIso = new Date().toISOString();
+      state.timetable = state.timetable.map((plan) => (plan.id === loginId && !plan.canceled
+        ? { ...plan, login: currentTimeValue(), loginAt: plan.loginAt || nowIso, status: "active" }
+        : plan));
       saveState();
       render();
       return;
     }
     const logoffId = button.dataset.v3Logoff;
     if (logoffId) {
+      const nowIso = new Date().toISOString();
       state.timetable = state.timetable.map((plan) => {
         if (plan.id !== logoffId || plan.canceled) return plan;
         const logoff = currentTimeValue();
-        const updated = { ...plan, logoff, endTime: logoff, done: true, status: "completed" };
+        const updated = { ...plan, logoff, logoffAt: plan.logoffAt || nowIso, endTime: logoff, done: true, status: "completed" };
         updated.totalDuration = getPlanDurationMinutes(updated);
         updated.sessionLogs = [...(plan.sessionLogs || []), { login: plan.login, logoff, duration: updated.totalDuration }];
         addTimetableSession(updated);
@@ -3670,6 +3674,8 @@ function renderTimetable() {
     }
     const breakId = button.dataset.v3Break;
     if (breakId) { await addPlanBreak(breakId); renderTimetable(); return; }
+    const endBreakId = button.dataset.v3EndBreak;
+    if (endBreakId) { finishPlanBreak(endBreakId); saveState(); renderTimetable(); return; }
     const cancelId = button.dataset.v3CancelSession;
     if (cancelId) { await cancelPlanSession(cancelId); renderTimetable(); }
   });
