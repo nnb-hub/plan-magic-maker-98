@@ -3504,6 +3504,7 @@ function renderTimetable() {
     ? `${Math.floor(loggedMinutes / 60)}h ${loggedMinutes % 60 ? `${loggedMinutes % 60}m` : ""}`.trim()
     : `${loggedMinutes}m`;
   const progress = plans.length ? Math.round((doneCount / plans.length) * 100) : 0;
+  const execStats = plannerExecutionStats(plans);
 
   const listMarkup = plannerRange === "day"
     ? (plans.length
