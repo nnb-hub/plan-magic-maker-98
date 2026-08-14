@@ -3250,6 +3250,185 @@ function plannerStateKey(plan) {
   return "planned";
 }
 
+/* ----------------------------------------------------------
+   Execution timing engine (planned vs actual, ±5 min tolerance)
+   All calculations read persistent timestamps on the existing
+   plan objects. Nothing here mutates planned times.
+   ---------------------------------------------------------- */
+const PLAN_TOLERANCE_MIN = 5;
+
+function planPlannedMs(plan) {
+  const planned = Date.parse(`${plan.date}T${plan.time}:00`);
+  return Number.isFinite(planned) ? planned : NaN;
+}
+
+function planStampMs(plan, kind) {
+  const iso = kind === "in" ? plan.loginAt : plan.logoffAt;
+  const parsed = Date.parse(iso || "");
+  if (Number.isFinite(parsed)) return parsed;
+  const clock = kind === "in" ? plan.login : plan.logoff;
+  if (!clock) return NaN;
+  const fallback = Date.parse(`${plan.date}T${clock}:00`);
+  return Number.isFinite(fallback) ? fallback : NaN;
+}
+
+function planStartDiffMinutes(plan) {
+  const actual = planStampMs(plan, "in");
+  const planned = planPlannedMs(plan);
+  if (!Number.isFinite(actual) || !Number.isFinite(planned)) return null;
+  return Math.round((actual - planned) / 60000);
+}
+
+function planTimingVerdict(plan) {
+  const diff = planStartDiffMinutes(plan);
+  if (diff === null) return null;
+  if (diff < -PLAN_TOLERANCE_MIN) return { kind: "early", label: `${Math.abs(diff)} min early`, diff };
+  if (diff > PLAN_TOLERANCE_MIN) return { kind: "late", label: `+${diff} min late`, diff };
+  return { kind: "ontime", label: "ON TIME", diff };
+}
+
+function planIsRescheduled(plan) {
+  return Boolean(plan.rescheduled || plan.status === "rescheduled" || plan.originalTime);
+}
+
+function activePlanBreak(plan) {
+  const latest = Array.isArray(plan.breaks) ? plan.breaks.at(-1) : null;
+  return latest && !latest.endedAt ? latest : null;
+}
+
+function planBreakMs(plan, now = Date.now()) {
+  return (Array.isArray(plan.breaks) ? plan.breaks : []).reduce((total, entry) => {
+    const started = Date.parse(entry.startedAt || "");
+    if (!Number.isFinite(started)) return total;
+    const ended = Date.parse(entry.endedAt || "");
+    return total + Math.max(0, (Number.isFinite(ended) ? ended : now) - started);
+  }, 0);
+}
+
+function planElapsedMs(plan, now = Date.now()) {
+  const start = planStampMs(plan, "in");
+  if (!Number.isFinite(start)) return 0;
+  const end = planStampMs(plan, "out");
+  return Math.max(0, (Number.isFinite(end) ? end : now) - start);
+}
+
+function planActiveStudyMs(plan, now = Date.now()) {
+  return Math.max(0, planElapsedMs(plan, now) - planBreakMs(plan, now));
+}
+
+function planClockLabel(ms) {
+  if (!Number.isFinite(ms)) return "--:--";
+  return new Date(ms).toTimeString().slice(0, 5);
+}
+
+function planHealth(plan, now = Date.now()) {
+  if (plan.canceled || plan.done) return null;
+  if (isMissedPlan(plan)) return { key: "recovery", label: "RECOVERY REQUIRED" };
+  const planned = planPlannedMs(plan);
+  if (!Number.isFinite(planned)) return null;
+  if (!plan.login) {
+    const lateBy = Math.round((now - planned) / 60000);
+    if (lateBy > 15) return { key: "recovery", label: "RECOVERY REQUIRED" };
+    if (lateBy > -10) return { key: "risk", label: "AT RISK" };
+  }
+  return { key: "stable", label: "STABLE" };
+}
+
+function planRecoverySlot(plan) {
+  const verdict = planTimingVerdict(plan);
+  const isLate = (verdict && verdict.kind === "late") || isMissedPlan(plan) || isLatePendingPlan(plan);
+  if (plan.done || plan.canceled || !isLate) return null;
+  const nowClock = currentTimeValue();
+  const slot = state.timetable
+    .filter((entry) => entry.date === plan.date && !entry.archived && !entry.canceled && !entry.done && entry.id !== plan.id)
+    .filter((entry) => /buffer|recovery|free|flex/i.test(`${entry.topic || entry.task || ""} ${entry.subject || ""}`))
+    .filter((entry) => timeToMinutes(entry.time) > timeToMinutes(nowClock))
+    .sort((a, b) => String(a.time).localeCompare(String(b.time)))[0];
+  return slot ? slot.time : null;
+}
+
+function plannerExecutionStats(plans, now = Date.now()) {
+  const stats = { early: 0, ontime: 0, late: 0, missed: 0, rescheduled: 0, delays: [], earlies: [] };
+  plans.forEach((plan) => {
+    if (plan.canceled) return;
+    if (planIsRescheduled(plan)) stats.rescheduled += 1;
+    if (isMissedPlan(plan)) { stats.missed += 1; return; }
+    const verdict = planTimingVerdict(plan);
+    if (!verdict) return;
+    if (verdict.kind === "early") { stats.early += 1; stats.earlies.push(Math.abs(verdict.diff)); }
+    else if (verdict.kind === "late") { stats.late += 1; stats.delays.push(verdict.diff); }
+    else stats.ontime += 1;
+  });
+  const executed = stats.early + stats.ontime + stats.late + stats.missed;
+  stats.punctuality = executed ? Math.round(((stats.early + stats.ontime) / executed) * 100) : 0;
+  stats.avgDelay = stats.delays.length ? Math.round(stats.delays.reduce((a, b) => a + b, 0) / stats.delays.length) : 0;
+  stats.avgEarly = stats.earlies.length ? Math.round(stats.earlies.reduce((a, b) => a + b, 0) / stats.earlies.length) : 0;
+  return stats;
+}
+
+function plannerTimingBlock(plan, now = Date.now()) {
+  if (plan.canceled) return `<p class="tp-timing tp-t-aborted">Aborted &middot; ${escapeHtml(plan.cancelReason || "No reason saved")}</p>`;
+  if (planIsRescheduled(plan) && !plan.done) {
+    return `<p class="tp-timing tp-t-resch">RESCHEDULED${plan.originalTime ? ` &middot; was ${escapeHtml(plan.originalTime)}` : ""}</p>`;
+  }
+
+  const verdict = planTimingVerdict(plan);
+  const activeBreak = activePlanBreak(plan);
+  const running = plan.login && !plan.logoff && !plan.done;
+  const lines = [];
+
+  if (verdict) {
+    lines.push(`<span class="tp-actual">Actual ${escapeHtml(planClockLabel(planStampMs(plan, "in")))}</span>`);
+    lines.push(`<span class="tp-diff tp-t-${verdict.kind}">${escapeHtml(verdict.label)}</span>`);
+  } else if (isMissedPlan(plan)) {
+    lines.push(`<span class="tp-diff tp-t-missed">MISSED &middot; never started</span>`);
+  } else if (isLatePendingPlan(plan)) {
+    lines.push(`<span class="tp-diff tp-t-late">Not started &middot; log in now</span>`);
+  } else {
+    lines.push(`<span class="tp-actual tp-t-upcoming">Upcoming</span>`);
+  }
+
+  if (running && !activeBreak) {
+    lines.push(`<span class="tp-diff tp-t-progress">IN PROGRESS &middot; ${escapeHtml(formatDuration(planActiveStudyMs(plan, now)))}</span>`);
+  }
+  if (plan.done && plan.logoff) {
+    lines.push(`<span class="tp-actual">Out ${escapeHtml(plan.logoff)} &middot; active ${escapeHtml(formatDuration(planActiveStudyMs(plan, now)))}</span>`);
+  }
+
+  const recovery = planRecoverySlot(plan);
+  if (recovery) lines.push(`<span class="tp-recovery">Recovery available: ${escapeHtml(recovery)}</span>`);
+
+  const health = planHealth(plan, now);
+  if (health && health.key !== "stable") lines.push(`<span class="tp-health tp-health-${health.key}">${health.label}</span>`);
+
+  return `<p class="tp-timing">${lines.join("")}</p>`;
+}
+
+function plannerBreakBlock(plan, now = Date.now()) {
+  const breaks = Array.isArray(plan.breaks) ? plan.breaks : [];
+  if (!breaks.length) return "";
+  const active = activePlanBreak(plan);
+  const history = breaks
+    .filter((entry) => entry.endedAt)
+    .map((entry, index) => {
+      const started = Date.parse(entry.startedAt || "");
+      const ended = Date.parse(entry.endedAt || "");
+      const duration = Number.isFinite(started) && Number.isFinite(ended) ? formatDuration(Math.max(0, ended - started)) : "--";
+      return `<li><span>Break ${index + 1}</span><strong>${escapeHtml(entry.time || planClockLabel(started))} &rarr; ${escapeHtml(entry.endedTime || planClockLabel(ended))}</strong><span>${escapeHtml(entry.reason || "Break")}</span><span>${escapeHtml(duration)}</span><em>${entry.finishedEarly ? "ENDED EARLY" : "COMPLETED"}</em></li>`;
+    }).join("");
+
+  const activeMarkup = active
+    ? `<div class="tp-break-active">
+        <strong>BREAK ACTIVE</strong>
+        <span>Started ${escapeHtml(active.time || planClockLabel(Date.parse(active.startedAt || "")))}</span>
+        ${active.duration ? `<span>Suggested ${escapeHtml(String(active.duration))} min</span>` : ""}
+        <span>Running ${escapeHtml(formatDuration(Math.max(0, now - Date.parse(active.startedAt || String(now)))))}</span>
+      </div>`
+    : "";
+
+  return `<div class="tp-breaks">${activeMarkup}${history ? `<ul class="tp-break-log">${history}</ul>` : ""}</div>`;
+}
+
 function plannerReadForm() {
   const host = plannerHost();
   if (!host) return null;
