@@ -3539,6 +3539,18 @@ function renderTimetable() {
       </div>
     </div>
 
+    <div class="tp-exec" aria-label="Execution analytics">
+      <span class="tp-exec-title">Execution</span>
+      <span>On time <strong>${execStats.ontime}</strong></span>
+      <span>Early <strong>${execStats.early}</strong></span>
+      <span>Late <strong>${execStats.late}</strong></span>
+      <span>Missed <strong>${execStats.missed}</strong></span>
+      <span>Rescheduled <strong>${execStats.rescheduled}</strong></span>
+      <span>Punctuality <strong>${execStats.punctuality}%</strong></span>
+      <span>Avg delay <strong>${execStats.avgDelay} min</strong></span>
+      <span>Avg early start <strong>${execStats.avgEarly} min</strong></span>
+    </div>
+
     <form class="tp-form" data-v3-form novalidate>
       <label>Date<input data-v3-date type="date" value="${escapeHtml(draft.date || selectedDate)}"></label>
       <label>Start time<input data-v3-time type="time" value="${escapeHtml(draft.time || "06:00")}"></label>
