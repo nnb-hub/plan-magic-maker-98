@@ -2960,6 +2960,7 @@ async function addPlanBreak(id) {
       ]
     };
   });
+  saveState();
   render();
 }
 
