@@ -2960,6 +2960,7 @@ async function addPlanBreak(id) {
       ]
     };
   });
+  saveState();
   render();
 }
 
@@ -3474,9 +3475,9 @@ function plannerSessionCard(plan) {
         ${plannerTimingBlock(plan, now)}
         ${plannerBreakBlock(plan, now)}
         <div class="tp-actions">
-          <button type="button" data-v3-login="${plan.id}" ${plan.canceled ? "disabled" : ""}>${plan.login ? "Update In" : "Log In"}</button>
-          <button type="button" data-v3-logoff="${plan.id}" ${plan.canceled || activeBreak ? "disabled" : ""}>${plan.logoff ? "Update Out" : "Log Off"}</button>
-          <button type="button" data-v3-break="${plan.id}" ${plan.canceled || plan.done || activeBreak ? "disabled" : ""}>Break</button>
+          <button type="button" data-v3-login="${plan.id}" ${plan.canceled || plan.done ? "disabled" : ""}>${plan.login ? "Update In" : "Log In"}</button>
+          <button type="button" data-v3-logoff="${plan.id}" ${plan.canceled || !plan.login || activeBreak ? "disabled" : ""}>${plan.logoff ? "Update Out" : "Log Off"}</button>
+          <button type="button" data-v3-break="${plan.id}" ${plan.canceled || plan.done || !plan.login || activeBreak ? "disabled" : ""}>Break</button>
           ${activeBreak ? `<button type="button" class="tp-end-break" data-v3-end-break="${plan.id}">End Break &amp; Resume Mission</button>` : ""}
           <button type="button" class="secondary-button" data-v3-cancel-session="${plan.id}" ${plan.canceled ? "disabled" : ""}>Cancel</button>
           <button type="button" class="secondary-button" data-v3-edit="${plan.id}">Edit</button>
@@ -4302,3 +4303,29 @@ if (executiveCircularBtn && circularSection) {
     }
   });
 }
+
+// Live planner ticker: keeps IN PROGRESS timers, break counters and timing
+// verdicts current without requiring a click or refresh. Skips re-render while
+// the user is typing inside the planner so input focus is never stolen.
+let plannerTicker;
+function plannerHasLiveWork() {
+  return (state.timetable || []).some(
+    (plan) => plan.status === "active" || plan.status === "paused" || plan.breakStartedAt
+  );
+}
+function startPlannerTicker() {
+  clearInterval(plannerTicker);
+  plannerTicker = setInterval(() => {
+    const host = plannerHost();
+    if (!host || !host.isConnected) return;
+    if (document.hidden) return;
+    const active = document.activeElement;
+    if (active && host.contains(active) && /INPUT|SELECT|TEXTAREA/.test(active.tagName)) return;
+    if (!plannerHasLiveWork()) return;
+    renderTimetable();
+  }, 20000);
+}
+startPlannerTicker();
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && plannerHasLiveWork()) renderTimetable();
+});

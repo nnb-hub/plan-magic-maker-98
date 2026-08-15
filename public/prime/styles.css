@@ -3246,3 +3246,74 @@ body:not(.dark-mode) .plan-row .pill { border: 0; box-shadow: none; }
 .dmec-history button { background: var(--panel); color: var(--ink); font-weight: 500; box-shadow: none; }
 .dmec-history button:hover { border-color: var(--green); }
 .dmec-history button strong { font-size: 0.9rem; color: var(--ink); }
+
+/* ===== Execution timing, health & break system (v54) ===== */
+.tp-timing {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px;
+  margin: 2px 0 0; font-size: 0.76rem; color: var(--muted);
+}
+.tp-timing span { display: inline-flex; align-items: center; gap: 5px; }
+.tp-plan, .tp-actual, .tp-diff, .tp-recovery, .tp-health {
+  padding: 2px 9px; border-radius: 99px; font-weight: 700;
+  letter-spacing: 0.02em; background: var(--soft); font-variant-numeric: tabular-nums;
+}
+.tp-plan { color: var(--ink); }
+.tp-actual { color: var(--muted); }
+.tp-t-early, .tp-t-ontime {
+  color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent);
+}
+.tp-t-upcoming { color: var(--muted); background: var(--soft); }
+.tp-t-progress {
+  color: var(--amber); background: color-mix(in srgb, var(--amber) 16%, transparent);
+}
+.tp-t-resch { color: var(--blue); background: color-mix(in srgb, var(--blue) 16%, transparent); }
+.tp-t-late, .tp-t-missed, .tp-t-aborted {
+  color: var(--rose); background: color-mix(in srgb, var(--rose) 14%, transparent);
+}
+p.tp-timing.tp-t-resch, p.tp-timing.tp-t-aborted { padding: 2px 9px; border-radius: 99px; width: fit-content; }
+.tp-recovery { color: var(--blue); background: color-mix(in srgb, var(--blue) 12%, transparent); font-weight: 600; }
+.tp-health { text-transform: uppercase; font-size: 0.68rem; }
+.tp-health-stable { color: var(--green); background: color-mix(in srgb, var(--green) 12%, transparent); }
+.tp-health-risk { color: var(--amber); background: color-mix(in srgb, var(--amber) 14%, transparent); }
+.tp-health-recovery { color: var(--rose); background: color-mix(in srgb, var(--rose) 14%, transparent); }
+
+.tp-breaks { display: grid; gap: 6px; margin-top: 4px; }
+.tp-break-active {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding: 8px 12px; border-radius: 10px; font-size: 0.78rem;
+  color: var(--amber);
+  border: 1px dashed color-mix(in srgb, var(--amber) 45%, transparent);
+  background: color-mix(in srgb, var(--amber) 8%, transparent);
+}
+.tp-break-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.tp-break-log li {
+  font-size: 0.73rem; color: var(--muted);
+  padding-left: 14px; position: relative; font-variant-numeric: tabular-nums;
+}
+.tp-break-log li::before {
+  content: ""; position: absolute; left: 2px; top: 0.5em;
+  width: 6px; height: 6px; border-radius: 50%; background: var(--line);
+}
+.tp-end-break {
+  border-color: color-mix(in srgb, var(--amber) 55%, transparent) !important;
+  color: var(--amber) !important;
+}
+
+.tp-exec {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;
+  margin: 10px 0 4px; padding: 10px 14px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
+  font-size: 0.76rem; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.tp-exec-title {
+  font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase;
+  font-size: 0.68rem; color: var(--ink);
+}
+.tp-exec b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.tp-break-log li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.tp-break-log li strong { color: var(--ink); font-weight: 700; }
+.tp-break-log li em {
+  font-style: normal; font-size: 0.64rem; font-weight: 800; letter-spacing: 0.06em;
+  padding: 1px 7px; border-radius: 99px; background: var(--soft); color: var(--muted);
+}
+.tp-break-active strong { letter-spacing: 0.08em; }
