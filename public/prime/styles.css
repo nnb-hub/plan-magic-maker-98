@@ -3310,3 +3310,10 @@ p.tp-timing.tp-t-resch, p.tp-timing.tp-t-aborted { padding: 2px 9px; border-radi
   font-size: 0.68rem; color: var(--ink);
 }
 .tp-exec b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.tp-break-log li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.tp-break-log li strong { color: var(--ink); font-weight: 700; }
+.tp-break-log li em {
+  font-style: normal; font-size: 0.64rem; font-weight: 800; letter-spacing: 0.06em;
+  padding: 1px 7px; border-radius: 99px; background: var(--soft); color: var(--muted);
+}
+.tp-break-active strong { letter-spacing: 0.08em; }
