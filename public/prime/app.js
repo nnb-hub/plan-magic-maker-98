@@ -4302,3 +4302,29 @@ if (executiveCircularBtn && circularSection) {
     }
   });
 }
+
+// Live planner ticker: keeps IN PROGRESS timers, break counters and timing
+// verdicts current without requiring a click or refresh. Skips re-render while
+// the user is typing inside the planner so input focus is never stolen.
+let plannerTicker;
+function plannerHasLiveWork() {
+  return (state.timetable || []).some(
+    (plan) => plan.status === "active" || plan.status === "paused" || plan.breakStartedAt
+  );
+}
+function startPlannerTicker() {
+  clearInterval(plannerTicker);
+  plannerTicker = setInterval(() => {
+    const host = plannerHost();
+    if (!host || !host.isConnected) return;
+    if (document.hidden) return;
+    const active = document.activeElement;
+    if (active && host.contains(active) && /INPUT|SELECT|TEXTAREA/.test(active.tagName)) return;
+    if (!plannerHasLiveWork()) return;
+    renderTimetable();
+  }, 20000);
+}
+startPlannerTicker();
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && plannerHasLiveWork()) renderTimetable();
+});
