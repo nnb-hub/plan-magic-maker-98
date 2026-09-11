@@ -4329,3 +4329,816 @@ startPlannerTicker();
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && plannerHasLiveWork()) renderTimetable();
 });
+
+/* ==========================================================================
+   CEO COMMAND SYSTEM — Morning HQ Initialization, strict PL, CEO powers.
+   Integration layer only: reads/writes existing state (timetable, sessions,
+   subjects, revisions, mocks) and stores administrative data in state.hq.
+   ========================================================================== */
+
+const HQ_PL_LIMIT = 3;
+const HQ_DEPARTMENTS = ["Physics", "Chemistry", "Botany", "Zoology", "Question Practice", "Revision"];
+const HQ_PRIORITIES = ["CRITICAL", "HIGH", "NORMAL", "LOW"];
+const HQ_ATTENDANCE = [
+  { key: "full", icon: "\u{1F7E2}", label: "FULL DAY DUTY", pl: 0 },
+  { key: "morning", icon: "\u{1F305}", label: "MORNING HALF PL", pl: 0.5 },
+  { key: "afternoon", icon: "\u{1F307}", label: "AFTERNOON HALF PL", pl: 0.5 },
+  { key: "leave", icon: "\u{1F534}", label: "FULL DAY PL", pl: 1 }
+];
+
+let hqWizardStep = 0;
+let hqWizardDraft = null;
+let hqModalView = null;
+let hqNotice = "";
+
+function hqRoot() {
+  if (!state.hq || typeof state.hq !== "object") state.hq = { days: {} };
+  if (!state.hq.days || typeof state.hq.days !== "object") state.hq.days = {};
+  return state.hq;
+}
+
+function hqDay(date = todayKey()) {
+  return hqRoot().days[date] || null;
+}
+
+function hqToday() {
+  return hqDay(todayKey());
+}
+
+function hqIsReady() {
+  const day = hqToday();
+  return Boolean(day && day.completed);
+}
+
+function hqAttendanceMeta(key) {
+  return HQ_ATTENDANCE.find((item) => item.key === key) || HQ_ATTENDANCE[0];
+}
+
+function hqMonthKey(date = todayKey()) {
+  return String(date).slice(0, 7);
+}
+
+function hqPlUsed(month = hqMonthKey(), skipDate = null) {
+  return Object.values(hqRoot().days)
+    .filter((day) => day && day.completed && hqMonthKey(day.date) === month && day.date !== skipDate)
+    .reduce((total, day) => total + (Number(day.plValue) || 0), 0);
+}
+
+function hqPlRemaining(month = hqMonthKey(), skipDate = null) {
+  return Math.max(0, HQ_PL_LIMIT - hqPlUsed(month, skipDate));
+}
+
+function hqPlHistory() {
+  return Object.values(hqRoot().days)
+    .filter((day) => day && day.completed && Number(day.plValue) > 0)
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+}
+
+function hqDefaultDraft() {
+  const previous = hqDay(todayKey(-1));
+  return {
+    date: todayKey(),
+    attendance: "full",
+    plValue: 0,
+    targetHours: Number(previous?.targetHours) || 8,
+    breakPolicy: previous?.breakPolicy
+      ? JSON.parse(JSON.stringify(previous.breakPolicy))
+      : { mode: "same", same: { work: 90, breakMin: 15 }, custom: {} },
+    objective: "",
+    priorities: previous?.priorities ? { ...previous.priorities } : {},
+    completed: false
+  };
+}
+
+function hqBreakFor(draft, department) {
+  const policy = draft.breakPolicy || {};
+  if (policy.mode !== "custom") return policy.same || { work: 90, breakMin: 15 };
+  return (policy.custom || {})[department] || { work: 90, breakMin: 15 };
+}
+
+function hqTodayPlans() {
+  return state.timetable
+    .filter((plan) => plan.date === todayKey() && !plan.archived && !plan.canceled)
+    .sort((a, b) => String(a.time).localeCompare(String(b.time)));
+}
+
+function hqPlannedMinutes() {
+  const plans = hqTodayPlans();
+  return plans.reduce((total, plan, index) => {
+    const next = plans[index + 1];
+    const start = timeToMinutes(plan.time);
+    const end = next ? timeToMinutes(next.time) : start + 60;
+    return total + Math.max(15, Math.min(180, end - start));
+  }, 0);
+}
+
+function hqExecutedHours() {
+  const analytics = getActivityAnalytics([todayKey()]);
+  return (analytics.total || 0) / 3600000;
+}
+
+function hqMinutesLabel(minutes) {
+  const total = Math.max(0, Math.round(minutes));
+  const hours = Math.floor(total / 60);
+  const mins = total % 60;
+  if (!hours) return `${mins}m`;
+  return mins ? `${hours}h ${mins}m` : `${hours}h`;
+}
+
+function hqEscape(value) {
+  return escapeHtml(String(value ?? ""));
+}
+
+/* ---------------------------------------------------------------- modal --- */
+
+function hqModal() {
+  return document.querySelector("#hqModal");
+}
+
+function hqCloseModal() {
+  hqModalView = null;
+  hqNotice = "";
+  const modal = hqModal();
+  if (modal) {
+    modal.hidden = true;
+    modal.innerHTML = "";
+  }
+  document.body.classList.remove("hq-modal-open");
+}
+
+function hqOpenModal(view) {
+  hqModalView = view;
+  hqNotice = "";
+  hqRenderModal();
+}
+
+function hqShell(title, subtitle, body, options = {}) {
+  return `
+    <div class="hq-modal-backdrop"></div>
+    <div class="hq-modal-card ${options.wide ? "hq-modal-wide" : ""}" role="dialog" aria-modal="true" aria-label="${hqEscape(title)}">
+      <header class="hq-modal-head">
+        <img class="hq-crest" src="assets/logo.png" alt="Project Prime emblem" />
+        <div>
+          <p class="hq-org">PROJECT PRIME HEADQUARTERS</p>
+          <h2>${hqEscape(title)}</h2>
+          <p class="hq-sub">${hqEscape(subtitle)}</p>
+        </div>
+        ${options.dismissible === false ? "" : `<button type="button" class="hq-close" data-hq="close" aria-label="Close">&times;</button>`}
+      </header>
+      ${hqNotice ? `<p class="hq-alert">${hqEscape(hqNotice)}</p>` : ""}
+      <div class="hq-modal-body">${body}</div>
+    </div>`;
+}
+
+function hqRenderModal() {
+  const modal = hqModal();
+  if (!modal) return;
+  if (!hqModalView) {
+    modal.hidden = true;
+    modal.innerHTML = "";
+    document.body.classList.remove("hq-modal-open");
+    return;
+  }
+  modal.hidden = false;
+  document.body.classList.add("hq-modal-open");
+  const builders = {
+    morning: hqMorningMarkup,
+    review: hqReviewMarkup,
+    departments: hqDepartmentsMarkup,
+    reorganize: hqReorganizeMarkup,
+    override: hqOverrideMarkup,
+    pl: hqPlMarkup
+  };
+  modal.innerHTML = (builders[hqModalView] || hqMorningMarkup)();
+}
+
+/* ------------------------------------------------------- morning wizard --- */
+
+function hqMorningMarkup() {
+  const draft = hqWizardDraft || (hqWizardDraft = hqDefaultDraft());
+  const steps = ["ATTENDANCE & PL", "PRODUCTIVE TARGET", "TIMETABLE", "BREAK POLICY", "PRIMARY OBJECTIVE", "HQ PLAN"];
+  const yesterday = hqDay(todayKey(-1));
+  const firstMove = yesterday?.tomorrowFirstMove;
+  const bar = `<ol class="hq-steps">${steps
+    .map((label, index) => `<li class="${index === hqWizardStep ? "is-current" : index < hqWizardStep ? "is-done" : ""}"><span>${index + 1}</span>${hqEscape(label)}</li>`)
+    .join("")}</ol>`;
+
+  const body = [
+    hqStepAttendance(draft),
+    hqStepTarget(draft),
+    hqStepTimetable(),
+    hqStepBreaks(draft),
+    hqStepObjective(draft),
+    hqStepPlan(draft)
+  ][hqWizardStep];
+
+  const nav = `
+    <div class="hq-nav">
+      ${hqWizardStep > 0 ? `<button type="button" class="secondary-button" data-hq="back">Back</button>` : "<span></span>"}
+      ${hqWizardStep < steps.length - 1
+        ? `<button type="button" class="primary-button" data-hq="next">Continue</button>`
+        : `<button type="button" class="primary-button hq-authorize" data-hq="open-hq">OPEN PROJECT PRIME HQ</button>`}
+    </div>`;
+
+  const carry = firstMove
+    ? `<p class="hq-carry">Yesterday's first priority was: <strong>${hqEscape(firstMove)}</strong></p>`
+    : "";
+
+  return hqShell(
+    "GOOD MORNING, CEO.",
+    "DAILY OPERATIONS INITIALIZATION",
+    `${carry}${bar}<div class="hq-step-body">${body}</div>${nav}`,
+    { dismissible: false, wide: true }
+  );
+}
+
+function hqStepAttendance(draft) {
+  const used = hqPlUsed(hqMonthKey(), draft.date);
+  const remaining = Math.max(0, HQ_PL_LIMIT - used);
+  return `
+    <h3 class="hq-h">TODAY'S ATTENDANCE STATUS</h3>
+    <div class="hq-options">
+      ${HQ_ATTENDANCE.map((item) => `
+        <button type="button" class="hq-option ${draft.attendance === item.key ? "is-active" : ""}" data-hq="attendance" data-value="${item.key}">
+          <span class="hq-option-icon">${item.icon}</span>
+          <strong>${item.label}</strong>
+          <small>${item.pl ? `Consumes ${item.pl} PL day` : "No leave consumed"}</small>
+        </button>`).join("")}
+    </div>
+    <div class="hq-pl-box">
+      <p class="hq-pl-title">CURRENT MONTH PL</p>
+      <p>Used: <strong>${used} / ${HQ_PL_LIMIT} days</strong></p>
+      <p>Remaining: <strong>${remaining} days</strong></p>
+      <p class="hq-fine">Privilege Leave is an official administrative allowance. It resets on the first day of every calendar month.</p>
+    </div>`;
+}
+
+function hqStepTarget(draft) {
+  const options = [4, 6, 8, 10, 12];
+  return `
+    <h3 class="hq-h">TODAY'S PRODUCTIVE TARGET</h3>
+    <p class="hq-lede">How many productive hours are you targeting today?</p>
+    <div class="hq-target-row">
+      <input id="hqTargetInput" class="hq-target-input" type="number" min="0" max="18" step="0.5" value="${Number(draft.targetHours) || 0}" />
+      <span>HOURS</span>
+    </div>
+    <div class="hq-quick">
+      ${options.map((hours) => `<button type="button" class="hq-pill ${Number(draft.targetHours) === hours ? "is-active" : ""}" data-hq="target" data-value="${hours}">${hours}h</button>`).join("")}
+    </div>
+    <p class="hq-fine">Analytics will compare planned target against actual executed time for today.</p>`;
+}
+
+function hqStepTimetable() {
+  const plans = hqTodayPlans();
+  if (!plans.length) {
+    return `
+      <h3 class="hq-h">TIMETABLE READINESS</h3>
+      <div class="hq-warn">
+        <strong>\u26A0\uFE0F TIMETABLE NOT SET</strong>
+        <p>Today's operating schedule has not been established.</p>
+        <button type="button" class="primary-button" data-hq="set-timetable">SET TODAY'S TIMETABLE</button>
+      </div>`;
+  }
+  return `
+    <h3 class="hq-h">TIMETABLE READINESS</h3>
+    <div class="hq-ok"><strong>\u2705 TIMETABLE READY</strong><p>Planned productive time: <strong>${hqMinutesLabel(hqPlannedMinutes())}</strong> across ${plans.length} session${plans.length === 1 ? "" : "s"}.</p></div>
+    <ul class="hq-list">
+      ${plans.map((plan) => `<li><span class="hq-time">${hqEscape(plan.time)}</span><strong>${hqEscape(plan.subject)}</strong><small>${hqEscape(plan.topic || plan.task || "")}</small></li>`).join("")}
+    </ul>
+    <button type="button" class="secondary-button" data-hq="set-timetable">Open Timetable Planner</button>`;
+}
+
+function hqStepBreaks(draft) {
+  const policy = draft.breakPolicy;
+  const same = policy.same || { work: 90, breakMin: 15 };
+  return `
+    <h3 class="hq-h">TODAY'S BREAK POLICY</h3>
+    <p class="hq-lede">Should all departments follow the same break structure?</p>
+    <div class="hq-options hq-options-2">
+      <button type="button" class="hq-option ${policy.mode === "same" ? "is-active" : ""}" data-hq="break-mode" data-value="same"><strong>SAME BREAK STRUCTURE FOR ALL</strong><small>One work/break rhythm today</small></button>
+      <button type="button" class="hq-option ${policy.mode === "custom" ? "is-active" : ""}" data-hq="break-mode" data-value="custom"><strong>CUSTOMIZE BY DEPARTMENT</strong><small>Different rhythm per department</small></button>
+    </div>
+    ${policy.mode === "custom"
+      ? `<table class="hq-table">
+          <thead><tr><th>Department</th><th>Work (min)</th><th>Break (min)</th></tr></thead>
+          <tbody>
+            ${HQ_DEPARTMENTS.map((dept) => {
+              const config = hqBreakFor(draft, dept);
+              return `<tr>
+                <td>${hqEscape(dept)}</td>
+                <td><input type="number" min="15" max="240" step="5" value="${config.work}" data-hq-break="work" data-dept="${hqEscape(dept)}" /></td>
+                <td><input type="number" min="0" max="60" step="5" value="${config.breakMin}" data-hq-break="breakMin" data-dept="${hqEscape(dept)}" /></td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>`
+      : `<div class="hq-inline-fields">
+          <label>Work block (min)<input type="number" min="15" max="240" step="5" value="${same.work}" data-hq-same="work" /></label>
+          <label>Break (min)<input type="number" min="0" max="60" step="5" value="${same.breakMin}" data-hq-same="breakMin" /></label>
+        </div>`}
+    <p class="hq-fine">Break durations are guidance for the planner. Only the CEO ends a break \u2014 PRIME never cuts one off automatically.</p>`;
+}
+
+function hqStepObjective(draft) {
+  const suggestions = [
+    ...hqTodayPlans().map((plan) => `${plan.subject} \u2014 ${plan.topic || plan.task || "session"}`),
+    ...(state.goals || []).filter((goal) => goal.date === todayKey() && !goal.done).map((goal) => goal.text),
+    ...(state.revisions || []).filter((rev) => rev.date === todayKey()).map((rev) => `Revision \u2014 ${rev.text}`)
+  ].filter(Boolean).slice(0, 8);
+
+  return `
+    <h3 class="hq-h">TODAY'S PRIMARY OBJECTIVE</h3>
+    <p class="hq-lede">Select or define the single most important academic objective for today.</p>
+    <input id="hqObjectiveInput" class="hq-text-input" type="text" maxlength="140" placeholder="e.g. Complete Human Physiology + 100 questions" value="${hqEscape(draft.objective)}" />
+    ${suggestions.length ? `<div class="hq-quick">${suggestions.map((text) => `<button type="button" class="hq-pill" data-hq="objective" data-value="${hqEscape(text)}">${hqEscape(text)}</button>`).join("")}</div>` : ""}
+    <h4 class="hq-h4">DEPARTMENT PRIORITIES</h4>
+    <div class="hq-priority-grid">
+      ${HQ_DEPARTMENTS.map((dept) => `
+        <label class="hq-priority">
+          <span>${hqEscape(dept)}</span>
+          <select data-hq-priority="${hqEscape(dept)}">
+            ${HQ_PRIORITIES.map((level) => `<option value="${level}" ${(draft.priorities[dept] || "NORMAL") === level ? "selected" : ""}>${level}</option>`).join("")}
+          </select>
+        </label>`).join("")}
+    </div>`;
+}
+
+function hqStepPlan(draft) {
+  const attendance = hqAttendanceMeta(draft.attendance);
+  const used = hqPlUsed(hqMonthKey(), draft.date) + (Number(draft.plValue) || 0);
+  const plansReady = hqTodayPlans().length > 0;
+  const topPriority = Object.entries(draft.priorities).find(([, level]) => level === "CRITICAL")
+    || Object.entries(draft.priorities).find(([, level]) => level === "HIGH");
+  return `
+    <h3 class="hq-h">DAILY HQ OPERATING PLAN</h3>
+    <dl class="hq-plan">
+      <div><dt>Attendance</dt><dd>${attendance.label}</dd></div>
+      <div><dt>PL</dt><dd>${used} / ${HQ_PL_LIMIT} DAYS USED</dd></div>
+      <div><dt>Productive Target</dt><dd>${Number(draft.targetHours) || 0} HOURS</dd></div>
+      <div><dt>Timetable</dt><dd>${plansReady ? "READY" : "NOT SET"}</dd></div>
+      <div><dt>Break Policy</dt><dd>${(draft.breakPolicy.mode || "same").toUpperCase()}</dd></div>
+      <div><dt>Primary Objective</dt><dd>${hqEscape(draft.objective || "Not defined")}</dd></div>
+      <div><dt>Lead Department</dt><dd>${topPriority ? `${hqEscape(topPriority[0])} \u2014 ${topPriority[1]}` : "NORMAL ACROSS DEPARTMENTS"}</dd></div>
+    </dl>
+    <p class="hq-authorize-note">ALL ADMINISTRATIVE INPUTS RECEIVED.<br />TODAY'S HQ PLAN IS READY.</p>
+    <p class="hq-fine">CEO AUTHORIZATION REQUIRED</p>`;
+}
+
+function hqCaptureStep() {
+  const draft = hqWizardDraft;
+  if (!draft) return true;
+  const modal = hqModal();
+  if (!modal) return true;
+
+  if (hqWizardStep === 1) {
+    const input = modal.querySelector("#hqTargetInput");
+    if (input) draft.targetHours = Math.max(0, Number(input.value) || 0);
+  }
+  if (hqWizardStep === 3) {
+    modal.querySelectorAll("[data-hq-same]").forEach((input) => {
+      draft.breakPolicy.same = draft.breakPolicy.same || { work: 90, breakMin: 15 };
+      draft.breakPolicy.same[input.dataset.hqSame] = Math.max(0, Number(input.value) || 0);
+    });
+    modal.querySelectorAll("[data-hq-break]").forEach((input) => {
+      const dept = input.dataset.dept;
+      draft.breakPolicy.custom = draft.breakPolicy.custom || {};
+      draft.breakPolicy.custom[dept] = draft.breakPolicy.custom[dept] || { work: 90, breakMin: 15 };
+      draft.breakPolicy.custom[dept][input.dataset.hqBreak] = Math.max(0, Number(input.value) || 0);
+    });
+  }
+  if (hqWizardStep === 4) {
+    const input = modal.querySelector("#hqObjectiveInput");
+    if (input) draft.objective = input.value.trim();
+    modal.querySelectorAll("[data-hq-priority]").forEach((select) => {
+      draft.priorities[select.dataset.hqPriority] = select.value;
+    });
+  }
+  return true;
+}
+
+function hqSetAttendance(key) {
+  const draft = hqWizardDraft;
+  const meta = hqAttendanceMeta(key);
+  const remaining = hqPlRemaining(hqMonthKey(), draft.date);
+  if (meta.pl > remaining) {
+    hqNotice = "PL LIMIT EXCEEDED \u2014 REQUEST CANNOT BE APPROVED.";
+    hqRenderModal();
+    return;
+  }
+  draft.attendance = key;
+  draft.plValue = meta.pl;
+  hqNotice = "";
+  hqRenderModal();
+}
+
+function hqCommitDay() {
+  const draft = hqWizardDraft;
+  hqCaptureStep();
+  const meta = hqAttendanceMeta(draft.attendance);
+  if (meta.pl > hqPlRemaining(hqMonthKey(), draft.date)) {
+    hqNotice = "PL LIMIT EXCEEDED \u2014 REQUEST CANNOT BE APPROVED.";
+    hqWizardStep = 0;
+    hqRenderModal();
+    return;
+  }
+  const previous = hqDay(draft.date) || {};
+  hqRoot().days[draft.date] = {
+    ...previous,
+    ...draft,
+    plValue: meta.pl,
+    completed: true,
+    hqOpen: true,
+    hqOpenedAt: new Date().toISOString(),
+    hqClosedAt: ""
+  };
+  hqWizardDraft = null;
+  hqWizardStep = 0;
+  hqCloseModal();
+  saveState();
+  render();
+}
+
+/* ---------------------------------------------------------- CEO reviews --- */
+
+function hqDepartmentReport() {
+  const monthDates = getNextDates(30, todayKey(-29));
+  return HQ_DEPARTMENTS.map((dept) => {
+    const subject = state.subjects[dept];
+    const theory = subject && subject.total
+      ? Math.round((subject.done / subject.total) * 100)
+      : null;
+    const sessions = (state.sessions || []).filter((session) => !session.canceled && monthDates.includes(session.date));
+    const deptSessions = dept === "Question Practice"
+      ? sessions.filter((session) => session.activityType === "Question Practice")
+      : dept === "Revision"
+        ? sessions.filter((session) => session.subject === "Revision")
+        : sessions.filter((session) => session.subject === dept);
+    const hours = deptSessions.reduce((total, session) => total + (Number(session.hours) || 0), 0);
+    const revisionItems = (state.revisions || []).filter((rev) => String(rev.text).toLowerCase().includes(dept.toLowerCase())).length;
+    const plans = state.timetable.filter((plan) => !plan.archived && plan.subject === dept);
+    const donePlans = plans.filter((plan) => plan.done).length;
+    return {
+      dept,
+      theory,
+      chapters: subject ? `${subject.done}/${subject.total}` : "\u2014",
+      hours,
+      revisionItems,
+      execution: plans.length ? Math.round((donePlans / plans.length) * 100) : null,
+      priority: (hqToday()?.priorities || {})[dept] || "NORMAL"
+    };
+  });
+}
+
+function hqDepartmentsMarkup() {
+  const rows = hqDepartmentReport();
+  return hqShell("DEPARTMENT REPORT", "CEO COMMAND \u2014 DEPARTMENT PERFORMANCE (LAST 30 DAYS)", `
+    <table class="hq-table hq-dept-table">
+      <thead><tr><th>Department</th><th>Theory</th><th>Chapters</th><th>Logged</th><th>Session execution</th><th>Priority</th></tr></thead>
+      <tbody>
+        ${rows.map((row) => `<tr>
+          <td><strong>${hqEscape(row.dept)}</strong></td>
+          <td>${row.theory === null ? "\u2014" : `${row.theory}%`}</td>
+          <td>${hqEscape(row.chapters)}</td>
+          <td>${row.hours ? `${Number(row.hours.toFixed(1))}h` : "0h"}</td>
+          <td>${row.execution === null ? "\u2014" : `${row.execution}%`}</td>
+          <td><span class="hq-prio hq-prio-${row.priority.toLowerCase()}">${row.priority}</span></td>
+        </tr>`).join("")}
+      </tbody>
+    </table>
+    <p class="hq-fine">All figures are read from existing PRIME data: chapter tracker, logged sessions and timetable execution.</p>
+  `, { wide: true });
+}
+
+function hqPlMarkup() {
+  const history = hqPlHistory();
+  const used = hqPlUsed();
+  return hqShell("PRIVILEGE LEAVE REGISTER", `${hqMonthKey()} \u2014 OFFICE OF ADMINISTRATION`, `
+    <div class="hq-pl-box">
+      <p class="hq-pl-title">CURRENT MONTH PL</p>
+      <p>Used: <strong>${used} / ${HQ_PL_LIMIT} days</strong></p>
+      <p>Remaining: <strong>${Math.max(0, HQ_PL_LIMIT - used)} days</strong></p>
+    </div>
+    ${history.length
+      ? `<table class="hq-table"><thead><tr><th>Date</th><th>Type</th><th>Days</th></tr></thead><tbody>
+          ${history.map((day) => `<tr><td>${hqEscape(day.date)}</td><td>${hqEscape(hqAttendanceMeta(day.attendance).label)}</td><td>${day.plValue}</td></tr>`).join("")}
+        </tbody></table>`
+      : `<p class="hq-fine">No privilege leave has been availed yet.</p>`}
+  `);
+}
+
+function hqReorganizeMarkup() {
+  const remaining = hqTodayPlans().filter((plan) => !plan.done);
+  return hqShell("CEO DECISION", "CURRENT SCHEDULE DISRUPTED", `
+    <p class="hq-lede">${remaining.length} session${remaining.length === 1 ? "" : "s"} remain unexecuted today. Choose an administrative action \u2014 the day is reorganized, not abandoned.</p>
+    <div class="hq-options hq-options-2">
+      <button type="button" class="hq-option" data-hq="reorg" data-value="reschedule"><strong>RESCHEDULE REMAINING WORK</strong><small>Restack pending sessions from now onwards</small></button>
+      <button type="button" class="hq-option" data-hq="reorg" data-value="protect"><strong>PROTECT TODAY'S PRIORITY</strong><small>Keep high/critical departments today, move the rest to tomorrow</small></button>
+      <button type="button" class="hq-option" data-hq="reorg" data-value="reduce"><strong>REDUCE WORKLOAD</strong><small>Move the later half of pending work to tomorrow</small></button>
+      <button type="button" class="hq-option" data-hq="reorg" data-value="reallocate"><strong>REALLOCATE TIME</strong><small>Spread pending sessions evenly until 22:00</small></button>
+    </div>
+  `, { wide: true });
+}
+
+function hqApplyReorg(action) {
+  const now = timeToMinutes(currentTimeValue());
+  const pending = hqTodayPlans().filter((plan) => !plan.done);
+  if (!pending.length) {
+    hqNotice = "NO PENDING SESSIONS. NO ACTION REQUIRED.";
+    hqRenderModal();
+    return;
+  }
+  const stamp = (plan, minutes) => {
+    plan.originalTime = plan.originalTime || plan.time;
+    plan.time = hqMinutesToTime(minutes);
+    plan.rescheduled = true;
+    plan.rescheduledAt = new Date().toISOString();
+  };
+
+  if (action === "reschedule") {
+    let cursor = Math.min(now + 10, 22 * 60);
+    pending.forEach((plan) => {
+      stamp(plan, cursor);
+      cursor = Math.min(cursor + 75, 23 * 60);
+    });
+    hqNotice = "REMAINING WORK RESCHEDULED FROM NOW.";
+  } else if (action === "protect") {
+    const priorities = hqToday()?.priorities || {};
+    pending.forEach((plan) => {
+      const level = priorities[plan.subject] || "NORMAL";
+      if (level === "CRITICAL" || level === "HIGH") return;
+      plan.originalTime = plan.originalTime || plan.time;
+      plan.date = todayKey(1);
+      plan.rescheduled = true;
+      plan.rescheduledAt = new Date().toISOString();
+    });
+    hqNotice = "PRIORITY DEPARTMENTS PROTECTED. REMAINING WORK MOVED TO TOMORROW.";
+  } else if (action === "reduce") {
+    const cut = pending.slice(Math.ceil(pending.length / 2));
+    cut.forEach((plan) => {
+      plan.originalTime = plan.originalTime || plan.time;
+      plan.date = todayKey(1);
+      plan.rescheduled = true;
+      plan.rescheduledAt = new Date().toISOString();
+    });
+    hqNotice = `WORKLOAD REDUCED. ${cut.length} SESSION(S) MOVED TO TOMORROW.`;
+  } else if (action === "reallocate") {
+    const start = Math.min(now + 10, 21 * 60);
+    const end = 22 * 60;
+    const gap = Math.max(30, Math.floor((end - start) / pending.length));
+    pending.forEach((plan, index) => stamp(plan, Math.min(start + (gap * index), end)));
+    hqNotice = "TIME REALLOCATED ACROSS REMAINING SESSIONS.";
+  }
+  saveState();
+  render();
+  hqRenderModal();
+}
+
+function hqMinutesToTime(total) {
+  const clamped = Math.max(0, Math.min(23 * 60 + 55, Math.round(total)));
+  return `${String(Math.floor(clamped / 60)).padStart(2, "0")}:${String(clamped % 60).padStart(2, "0")}`;
+}
+
+function hqMissedPlans() {
+  return state.timetable.filter((plan) => isMissedPlan(plan));
+}
+
+function hqOverrideMarkup() {
+  const missed = hqMissedPlans();
+  return hqShell("CEO OVERRIDE AUTHORITY", "MISSED SESSION ADMINISTRATION", `
+    ${missed.length
+      ? `<div class="hq-override-list">
+          ${missed.map((plan) => `
+            <article class="hq-override">
+              <header><strong>${hqEscape(plan.subject)} SESSION MISSED</strong><span>${hqEscape(plan.time)} \u00B7 ${hqEscape(plan.topic || plan.task || "")}</span></header>
+              <div class="hq-override-actions">
+                <button type="button" class="secondary-button" data-hq="override" data-value="later" data-id="${plan.id}">Recover later today</button>
+                <button type="button" class="secondary-button" data-hq="override" data-value="tomorrow" data-id="${plan.id}">Move to tomorrow</button>
+                <button type="button" class="secondary-button" data-hq="override" data-value="reschedule" data-id="${plan.id}">Reschedule (+2h)</button>
+                <button type="button" class="secondary-button" data-hq="override" data-value="drop" data-id="${plan.id}">Intentionally dropped</button>
+              </div>
+            </article>`).join("")}
+        </div>`
+      : `<p class="hq-lede">No missed sessions require a CEO decision right now.</p>`}
+    <p class="hq-fine">A missed session is an administrative exception, not a failure. The CEO makes the final decision.</p>
+  `, { wide: true });
+}
+
+function hqApplyOverride(id, action) {
+  const plan = state.timetable.find((row) => row.id === id);
+  if (!plan) return;
+  const now = timeToMinutes(currentTimeValue());
+  plan.originalTime = plan.originalTime || plan.time;
+  if (action === "later") {
+    plan.time = hqMinutesToTime(now + 30);
+    plan.rescheduled = true;
+  } else if (action === "reschedule") {
+    plan.time = hqMinutesToTime(now + 120);
+    plan.rescheduled = true;
+  } else if (action === "tomorrow") {
+    plan.date = todayKey(1);
+    plan.rescheduled = true;
+  } else if (action === "drop") {
+    plan.canceled = true;
+    plan.cancelReason = "CEO decision \u2014 intentionally dropped";
+  }
+  plan.rescheduledAt = new Date().toISOString();
+  saveState();
+  render();
+  hqNotice = "CEO DECISION RECORDED.";
+  hqRenderModal();
+}
+
+function hqReviewMarkup() {
+  const day = hqToday();
+  const plans = hqTodayPlans();
+  const done = plans.filter((plan) => plan.done).length;
+  const executed = hqExecutedHours();
+  const target = Number(day?.targetHours) || 0;
+  const analytics = getActivityAnalytics([todayKey()]);
+  const revisionsDone = (state.revisions || []).filter((rev) => rev.date === todayKey()).length;
+  const backlog = getBacklogCount ? getBacklogCount() : 0;
+  const decision = day?.reviewDecision || "";
+  const firstMove = day?.tomorrowFirstMove || "";
+  const suggestions = state.timetable
+    .filter((plan) => plan.date === todayKey(1) && !plan.archived && !plan.canceled)
+    .sort((a, b) => String(a.time).localeCompare(String(b.time)))
+    .slice(0, 6)
+    .map((plan) => `${plan.subject} \u2014 ${plan.topic || plan.task || "session"}`);
+
+  return hqShell("CEO CHECK-OUT", "CEO DAILY REVIEW \u2014 END OF OPERATING DAY", `
+    <dl class="hq-plan">
+      <div><dt>Planned</dt><dd>${target ? `${target}h` : "\u2014"}</dd></div>
+      <div><dt>Executed</dt><dd>${hqMinutesLabel(executed * 60)}</dd></div>
+      <div><dt>Missions completed</dt><dd>${done} / ${plans.length}</dd></div>
+      <div><dt>Question practice</dt><dd>${hqMinutesLabel((analytics["Question Practice"] || 0) / 60000)}</dd></div>
+      <div><dt>Revision items today</dt><dd>${revisionsDone}</dd></div>
+      <div><dt>Backlog</dt><dd>${backlog}</dd></div>
+      <div><dt>Attendance</dt><dd>${hqEscape(hqAttendanceMeta(day?.attendance).label)}</dd></div>
+      <div><dt>Primary objective</dt><dd>${hqEscape(day?.objective || "Not defined")}</dd></div>
+    </dl>
+    <h4 class="hq-h4">CEO DECISION FOR TOMORROW</h4>
+    <div class="hq-quick">
+      ${["CONTINUE", "CORRECT", "RECOVER"].map((item) => `<button type="button" class="hq-pill ${decision === item ? "is-active" : ""}" data-hq="review-decision" data-value="${item}">${item}</button>`).join("")}
+    </div>
+    <h4 class="hq-h4">TOMORROW'S FIRST PRIORITY</h4>
+    <input id="hqFirstMoveInput" class="hq-text-input" type="text" maxlength="140" placeholder="e.g. Physics \u2014 Electrostatics PYQs" value="${hqEscape(firstMove)}" />
+    ${suggestions.length ? `<div class="hq-quick">${suggestions.map((text) => `<button type="button" class="hq-pill" data-hq="first-move" data-value="${hqEscape(text)}">${hqEscape(text)}</button>`).join("")}</div>` : ""}
+    <p class="hq-authorize-note">TODAY'S HQ REVIEW COMPLETE.</p>
+    <div class="hq-nav"><span></span><button type="button" class="primary-button hq-authorize" data-hq="close-hq">CLOSE HQ</button></div>
+  `, { wide: true });
+}
+
+function hqCloseHq() {
+  const day = hqToday();
+  if (!day) return;
+  const input = hqModal()?.querySelector("#hqFirstMoveInput");
+  if (input) day.tomorrowFirstMove = input.value.trim();
+  day.hqOpen = false;
+  day.hqClosedAt = new Date().toISOString();
+  saveState();
+  hqCloseModal();
+  render();
+}
+
+/* ------------------------------------------------------ dashboard views --- */
+
+function hqWidgetsMarkup() {
+  const day = hqToday();
+  if (!day) return "";
+  const used = hqPlUsed();
+  const executed = hqExecutedHours();
+  const target = Number(day.targetHours) || 0;
+  const lead = Object.entries(day.priorities || {}).find(([, level]) => level === "CRITICAL")
+    || Object.entries(day.priorities || {}).find(([, level]) => level === "HIGH");
+  const tiles = [
+    { icon: "\u{1F3DB}\uFE0F", label: "HQ STATUS", value: day.hqOpen ? "OPEN \u2022 CEO ON DUTY" : "CLOSED", action: day.hqOpen ? "review" : "reopen", cls: day.hqOpen ? "is-open" : "is-closed" },
+    { icon: "\u{1F3AF}", label: "TODAY'S TARGET", value: target ? `${target}h \u00B7 ${hqMinutesLabel(executed * 60)} done` : "NOT SET", action: "target" },
+    { icon: "\u{1F4CB}", label: "ATTENDANCE", value: `${hqAttendanceMeta(day.attendance).label} \u00B7 PL ${used} / ${HQ_PL_LIMIT}`, action: "pl" },
+    { icon: "\u2615", label: "BREAK POLICY", value: (day.breakPolicy?.mode || "same").toUpperCase(), action: "breaks" },
+    { icon: "\u{1F3E2}", label: "PRIORITY", value: lead ? `${lead[0]} \u2014 ${lead[1]}` : "BALANCED", action: "departments" }
+  ];
+  return tiles.map((tile) => `
+    <button type="button" class="hq-widget ${tile.cls || ""}" data-hq="widget" data-value="${tile.action}">
+      <span class="hq-widget-icon">${tile.icon}</span>
+      <span class="hq-widget-label">${tile.label}</span>
+      <strong>${hqEscape(tile.value)}</strong>
+    </button>`).join("");
+}
+
+function hqCommandMarkup() {
+  const day = hqToday();
+  if (!day) return "";
+  const missed = hqMissedPlans().length;
+  const plans = hqTodayPlans();
+  const activeMission = plans.find((plan) => plan.status === "active" || plan.status === "paused");
+  const statusLine = !day.hqOpen
+    ? "HQ STATUS: CLOSED"
+    : activeMission
+      ? `HQ IS OPEN. ACTIVE MISSION: ${activeMission.subject} \u00B7 ${activeMission.time}`
+      : plans.length
+        ? "HQ IS OPEN. NO ACTIVE MISSION DETECTED."
+        : "HQ IS OPEN. TODAY'S TIMETABLE HAS NOT BEEN ESTABLISHED.";
+  return `
+    <header class="hq-command-head">
+      <div>
+        <p class="hq-org">OFFICE OF THE CHAIRMAN</p>
+        <h2>CEO COMMAND SYSTEM</h2>
+        <p class="hq-status-line ${day.hqOpen ? "is-open" : "is-closed"}">${hqEscape(statusLine)}</p>
+      </div>
+      <p class="hq-objective"><span>PRIMARY OBJECTIVE</span><strong>${hqEscape(day.objective || "Not defined")}</strong></p>
+    </header>
+    <div class="hq-command-actions">
+      <button type="button" class="secondary-button" data-hq="widget" data-value="departments">\u{1F4CA} Call department reports</button>
+      <button type="button" class="secondary-button" data-hq="widget" data-value="reorganize">\u{1F501} Reorganize the day</button>
+      <button type="button" class="secondary-button" data-hq="widget" data-value="override">\u2696\uFE0F CEO override${missed ? ` (${missed})` : ""}</button>
+      <button type="button" class="secondary-button" data-hq="widget" data-value="pl">\u{1F5C2}\uFE0F PL register</button>
+      ${day.hqOpen
+        ? `<button type="button" class="primary-button" data-hq="widget" data-value="review">\u{1F319} CEO daily review &amp; close HQ</button>`
+        : `<button type="button" class="primary-button" data-hq="widget" data-value="reopen">\u{1F3DB}\uFE0F Re-open HQ</button>`}
+    </div>
+    ${missed ? `<p class="hq-alert-inline">CEO DECISION REQUIRED \u2014 ${missed} missed session${missed === 1 ? "" : "s"} awaiting administrative action.</p>` : ""}`;
+}
+
+function hqRender() {
+  hqRoot();
+  const widgets = document.querySelector("#hqWidgets");
+  const command = document.querySelector("#hqCommand");
+  const ready = hqIsReady();
+
+  if (widgets) {
+    widgets.hidden = !ready;
+    widgets.innerHTML = ready ? hqWidgetsMarkup() : "";
+  }
+  if (command) {
+    command.hidden = !ready;
+    command.innerHTML = ready ? hqCommandMarkup() : "";
+  }
+  if (!ready && !hqModalView) {
+    hqWizardDraft = hqWizardDraft || hqDefaultDraft();
+    hqWizardStep = 0;
+    hqOpenModal("morning");
+  }
+}
+
+/* ------------------------------------------------------------- handlers --- */
+
+document.addEventListener("click", (event) => {
+  const trigger = event.target.closest("[data-hq]");
+  if (!trigger) return;
+  const action = trigger.dataset.hq;
+  const value = trigger.dataset.value;
+
+  if (action === "close") { hqCloseModal(); return; }
+  if (action === "back") { hqCaptureStep(); hqWizardStep = Math.max(0, hqWizardStep - 1); hqNotice = ""; hqRenderModal(); return; }
+  if (action === "next") { hqCaptureStep(); hqWizardStep = Math.min(5, hqWizardStep + 1); hqNotice = ""; hqRenderModal(); return; }
+  if (action === "attendance") { hqSetAttendance(value); return; }
+  if (action === "target") { hqCaptureStep(); hqWizardDraft.targetHours = Number(value); hqRenderModal(); return; }
+  if (action === "break-mode") { hqCaptureStep(); hqWizardDraft.breakPolicy.mode = value; hqRenderModal(); return; }
+  if (action === "objective") { hqCaptureStep(); hqWizardDraft.objective = value; hqRenderModal(); return; }
+  if (action === "set-timetable") {
+    hqCaptureStep();
+    hqCloseModal();
+    document.querySelector("#plannerRoot")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setTimeout(() => { hqOpenModal("morning"); hqWizardStep = 2; hqRenderModal(); }, 1200);
+    return;
+  }
+  if (action === "open-hq") { hqCommitDay(); return; }
+  if (action === "reorg") { hqApplyReorg(value); return; }
+  if (action === "override") { hqApplyOverride(trigger.dataset.id, value); return; }
+  if (action === "review-decision") {
+    const day = hqToday();
+    if (day) { day.reviewDecision = value; saveState(); hqRenderModal(); }
+    return;
+  }
+  if (action === "first-move") {
+    const day = hqToday();
+    if (day) { day.tomorrowFirstMove = value; saveState(); hqRenderModal(); }
+    return;
+  }
+  if (action === "close-hq") { hqCloseHq(); return; }
+  if (action === "widget") {
+    if (value === "reopen") {
+      const day = hqToday();
+      if (day) { day.hqOpen = true; day.hqClosedAt = ""; saveState(); render(); }
+      return;
+    }
+    if (value === "target" || value === "breaks") {
+      hqWizardDraft = { ...hqDefaultDraft(), ...hqToday() };
+      hqWizardStep = value === "target" ? 1 : 3;
+      hqOpenModal("morning");
+      return;
+    }
+    hqOpenModal(value === "departments" ? "departments" : value);
+    return;
+  }
+});
+
+document.addEventListener("click", (event) => {
+  if (event.target.classList?.contains("hq-modal-backdrop") && hqModalView !== "morning") hqCloseModal();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && hqModalView && hqModalView !== "morning") hqCloseModal();
+});
+
+hqRender();
