@@ -5141,4 +5141,12 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && hqModalView && hqModalView !== "morning") hqCloseModal();
 });
 
+/* Keep the HQ layer in sync with every existing app render. */
+const hqBaseRender = render;
+render = function hqPatchedRender(...args) {
+  const result = hqBaseRender.apply(this, args);
+  hqRender();
+  return result;
+};
+
 hqRender();
