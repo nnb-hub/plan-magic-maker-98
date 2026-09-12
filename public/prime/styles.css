@@ -4033,3 +4033,38 @@ body.hq-modal-open {
     display: none !important;
   }
 }
+
+/* HQ controls must win over the global light-theme button styling. */
+body:not(.dark-mode) button.hq-option,
+body.dark-mode button.hq-option {
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: none;
+  text-align: left;
+}
+body:not(.dark-mode) button.hq-option:hover,
+body.dark-mode button.hq-option:hover {
+  border-color: var(--blue);
+  background: var(--soft);
+  transform: none;
+}
+body:not(.dark-mode) button.hq-option.is-active,
+body.dark-mode button.hq-option.is-active {
+  color: var(--blue);
+  border-color: var(--blue);
+  background: var(--soft);
+  box-shadow: inset 0 0 0 1px var(--blue);
+}
+body:not(.dark-mode) button.hq-option:disabled,
+body.dark-mode button.hq-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+body:not(.dark-mode) button.hq-ghost,
+body.dark-mode button.hq-ghost {
+  color: var(--blue);
+  background: var(--soft);
+  box-shadow: none;
+}
+.hq-option-icon { font-family: inherit; }
