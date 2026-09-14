@@ -5239,6 +5239,13 @@ document.addEventListener("click", (event) => {
     if (day) { day.tomorrowFirstMove = value; saveState(); hqRenderModal(); }
     return;
   }
+  if (action === "desk") {
+    const input = hqModal()?.querySelector("#hqFirstMoveInput");
+    const day = hqToday();
+    if (input && day) day.tomorrowFirstMove = input.value.trim();
+    hqDeskAction(trigger.dataset.id, value);
+    return;
+  }
   if (action === "close-hq") { hqCloseHq(); return; }
   if (action === "widget") {
     if (value === "reopen") {
