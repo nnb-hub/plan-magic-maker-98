@@ -4948,6 +4948,125 @@ function hqApplyOverride(id, action) {
   hqRenderModal();
 }
 
+/* --------------------------------- executive circular intelligence (HQ) --- */
+
+function hqCircularToday() {
+  return circularStoredFor(todayKey()) || circularBuildReport(todayKey());
+}
+
+function hqCircularIntel() {
+  const report = hqCircularToday();
+  const missions = report.missions || [];
+  const completed = missions.filter((m) => m.status === "COMPLETED");
+  const pending = missions.filter((m) => !["COMPLETED", "RESCHEDULED"].includes(m.status));
+  const attention = missions.filter((m) => m.unverified || m.status === "IN PROGRESS" || m.status === "MISSED");
+  const departments = [...new Set(missions.map((m) => m.subject))];
+  const carried = (report.carryForward || []).filter((item) => item.decision !== "dropped");
+  const tomorrowPlans = state.timetable
+    .filter((plan) => plan.date === todayKey(1) && !plan.archived && !plan.canceled)
+    .sort((a, b) => String(a.time).localeCompare(String(b.time)));
+  return { report, missions, completed, pending, attention, departments, carried, tomorrowPlans };
+}
+
+function hqOrderLine(mission) {
+  return `<li><span class="hq-time">${hqEscape(mission.time)}</span><strong>${hqEscape(mission.subject)}</strong><small>${hqEscape(mission.topic)}</small></li>`;
+}
+
+function hqIntelMarkup(intel) {
+  const { report, missions, completed, pending, attention, departments, carried, tomorrowPlans } = intel;
+  if (!missions.length && !tomorrowPlans.length) {
+    return `<section class="hq-intel"><h4 class="hq-h4">EXECUTIVE CIRCULAR INTELLIGENCE</h4><p class="hq-fine">No orders were issued in today's circular.</p></section>`;
+  }
+  return `
+    <section class="hq-intel">
+      <h4 class="hq-h4">EXECUTIVE CIRCULAR INTELLIGENCE</h4>
+      <p class="hq-fine">Source document: ${hqEscape(report.documentId)} \u00B7 ${hqEscape(report.missionCode)} \u00B7 ${report.finalized ? "FINALISED" : "DRAFT"}</p>
+      <dl class="hq-plan">
+        <div><dt>Orders issued</dt><dd>${missions.length}</dd></div>
+        <div><dt>Completed orders</dt><dd>${completed.length}</dd></div>
+        <div><dt>Pending orders</dt><dd>${pending.length}</dd></div>
+        <div><dt>Departments concerned</dt><dd>${departments.length ? hqEscape(departments.join(", ")) : "\u2014"}</dd></div>
+      </dl>
+      ${completed.length ? `<h5 class="hq-h5">COMPLETED ORDERS</h5><ul class="hq-list">${completed.map(hqOrderLine).join("")}</ul>` : ""}
+      ${pending.length ? `<h5 class="hq-h5">PENDING ORDERS</h5><ul class="hq-list hq-list-warn">${pending.map(hqOrderLine).join("")}</ul>` : ""}
+      ${attention.length
+        ? `<h5 class="hq-h5">MATTERS NEEDING CEO ATTENTION</h5><ul class="hq-list hq-list-alert">${attention
+            .map((m) => `<li><span class="hq-time">${hqEscape(m.time)}</span><strong>${hqEscape(m.subject)} \u2014 ${hqEscape(m.topic)}</strong><small>${hqEscape(m.unverified ? "Marked done without a logged session" : m.status)}</small></li>`)
+            .join("")}</ul>`
+        : `<p class="hq-fine">No matters are awaiting CEO attention.</p>`}
+      <h5 class="hq-h5">ORDERS RELEVANT TO TOMORROW</h5>
+      ${carried.length || tomorrowPlans.length
+        ? `<ul class="hq-list">
+            ${carried.map((item) => `<li><span class="hq-time">carry</span><strong>${hqEscape(item.subject)}</strong><small>${hqEscape(item.topic)}</small></li>`).join("")}
+            ${tomorrowPlans.map((plan) => `<li><span class="hq-time">${hqEscape(plan.time || "--:--")}</span><strong>${hqEscape(plan.subject || "General")}</strong><small>${hqEscape(plan.topic || plan.task || "")}</small></li>`).join("")}
+          </ul>`
+        : `<p class="hq-fine">Nothing scheduled or carried forward for tomorrow yet.</p>`}
+    </section>`;
+}
+
+function hqDecisionDeskMarkup(intel) {
+  const day = hqToday();
+  const matters = intel.pending;
+  if (!matters.length) {
+    return `<section class="hq-desk"><h4 class="hq-h4">CEO DECISION DESK</h4><p class="hq-fine">No pending matter requires a decision today.</p></section>`;
+  }
+  const log = (day?.decisions) || {};
+  return `
+    <section class="hq-desk">
+      <h4 class="hq-h4">CEO DECISION DESK</h4>
+      <p class="hq-alert-inline">CEO DECISION REQUIRED \u2014 ${matters.length} pending matter${matters.length === 1 ? "" : "s"}.</p>
+      ${matters.map((m) => `
+        <article class="hq-desk-item">
+          <header><strong>${hqEscape(m.subject)} \u2014 ${hqEscape(m.topic)}</strong><span class="hq-time">${hqEscape(m.time)}</span></header>
+          ${log[m.id] ? `<p class="hq-fine">Recorded decision: <strong>${hqEscape(log[m.id])}</strong></p>` : ""}
+          <div class="hq-quick">
+            <button type="button" class="hq-pill" data-hq="desk" data-id="${hqEscape(m.id)}" data-value="continue">Continue current order</button>
+            <button type="button" class="hq-pill" data-hq="desk" data-id="${hqEscape(m.id)}" data-value="modify">Modify / Reorganize</button>
+            <button type="button" class="hq-pill" data-hq="desk" data-id="${hqEscape(m.id)}" data-value="recover">Recover pending work</button>
+            <button type="button" class="hq-pill" data-hq="desk" data-id="${hqEscape(m.id)}" data-value="directive">Issue new directive</button>
+          </div>
+        </article>`).join("")}
+    </section>`;
+}
+
+function hqDeskAction(planId, kind) {
+  const day = hqToday();
+  const plan = state.timetable.find((item) => item.id === planId);
+  if (!day || !plan) return;
+  day.decisions = day.decisions || {};
+
+  if (kind === "continue") {
+    day.decisions[planId] = "CONTINUE CURRENT ORDER";
+    hqNotice = "ORDER STANDS UNCHANGED.";
+  } else if (kind === "modify") {
+    day.decisions[planId] = "MODIFY / REORGANIZE";
+    saveState();
+    hqOpenModal("reorganize");
+    return;
+  } else if (kind === "recover") {
+    const item = {
+      planId: plan.id,
+      time: plan.time,
+      subject: plan.subject,
+      topic: plan.topic || plan.task,
+      activityType: plan.activityType
+    };
+    const moved = circularClonePlanTo(item, todayKey(1));
+    day.decisions[planId] = "RECOVERED TO TOMORROW";
+    hqNotice = moved ? "PENDING WORK RECOVERED INTO TOMORROW'S TIMETABLE." : "THIS ORDER IS ALREADY ON TOMORROW'S TIMETABLE.";
+  } else if (kind === "directive") {
+    const text = window.prompt("Issue new directive for this matter:", day.directives?.[planId] || "");
+    if (text === null) return;
+    day.directives = day.directives || {};
+    day.directives[planId] = text.trim();
+    day.decisions[planId] = text.trim() ? `NEW DIRECTIVE: ${text.trim()}` : "DIRECTIVE CLEARED";
+    hqNotice = "NEW DIRECTIVE ISSUED.";
+  }
+  saveState();
+  render();
+  hqRenderModal();
+}
+
 function hqReviewMarkup() {
   const day = hqToday();
   const plans = hqTodayPlans();
@@ -4959,11 +5078,11 @@ function hqReviewMarkup() {
   const backlog = getBacklogCount ? getBacklogCount() : 0;
   const decision = day?.reviewDecision || "";
   const firstMove = day?.tomorrowFirstMove || "";
-  const suggestions = state.timetable
-    .filter((plan) => plan.date === todayKey(1) && !plan.archived && !plan.canceled)
-    .sort((a, b) => String(a.time).localeCompare(String(b.time)))
-    .slice(0, 6)
-    .map((plan) => `${plan.subject} \u2014 ${plan.topic || plan.task || "session"}`);
+  const intel = hqCircularIntel();
+  const suggestions = [
+    ...intel.pending.map((m) => `${m.subject} \u2014 ${m.topic}`),
+    ...intel.tomorrowPlans.map((plan) => `${plan.subject} \u2014 ${plan.topic || plan.task || "session"}`)
+  ].filter((text, index, list) => list.indexOf(text) === index).slice(0, 6);
 
   return hqShell("CEO CHECK-OUT", "CEO DAILY REVIEW \u2014 END OF OPERATING DAY", `
     <dl class="hq-plan">
@@ -4976,13 +5095,18 @@ function hqReviewMarkup() {
       <div><dt>Attendance</dt><dd>${hqEscape(hqAttendanceMeta(day?.attendance).label)}</dd></div>
       <div><dt>Primary objective</dt><dd>${hqEscape(day?.objective || "Not defined")}</dd></div>
     </dl>
-    <h4 class="hq-h4">CEO DECISION FOR TOMORROW</h4>
-    <div class="hq-quick">
-      ${["CONTINUE", "CORRECT", "RECOVER"].map((item) => `<button type="button" class="hq-pill ${decision === item ? "is-active" : ""}" data-hq="review-decision" data-value="${item}">${item}</button>`).join("")}
-    </div>
-    <h4 class="hq-h4">TOMORROW'S FIRST PRIORITY</h4>
-    <input id="hqFirstMoveInput" class="hq-text-input" type="text" maxlength="140" placeholder="e.g. Physics \u2014 Electrostatics PYQs" value="${hqEscape(firstMove)}" />
-    ${suggestions.length ? `<div class="hq-quick">${suggestions.map((text) => `<button type="button" class="hq-pill" data-hq="first-move" data-value="${hqEscape(text)}">${hqEscape(text)}</button>`).join("")}</div>` : ""}
+    ${hqIntelMarkup(intel)}
+    ${hqDecisionDeskMarkup(intel)}
+    <section class="hq-tomorrow">
+      <h4 class="hq-h4">TOMORROW'S COMMAND</h4>
+      <div class="hq-quick">
+        ${["CONTINUE", "CORRECT", "RECOVER"].map((item) => `<button type="button" class="hq-pill ${decision === item ? "is-active" : ""}" data-hq="review-decision" data-value="${item}">${item}</button>`).join("")}
+      </div>
+      <h5 class="hq-h5">TOMORROW'S FIRST PRIORITY</h5>
+      <input id="hqFirstMoveInput" class="hq-text-input" type="text" maxlength="140" placeholder="e.g. Physics \u2014 Electrostatics PYQs" value="${hqEscape(firstMove)}" />
+      ${suggestions.length ? `<div class="hq-quick">${suggestions.map((text) => `<button type="button" class="hq-pill ${firstMove === text ? "is-active" : ""}" data-hq="first-move" data-value="${hqEscape(text)}">${hqEscape(text)}</button>`).join("")}</div>` : ""}
+      <p class="hq-fine">This priority is presented automatically in tomorrow's morning initialization.</p>
+    </section>
     <p class="hq-authorize-note">TODAY'S HQ REVIEW COMPLETE.</p>
     <div class="hq-nav"><span></span><button type="button" class="primary-button hq-authorize" data-hq="close-hq">CLOSE HQ</button></div>
   `, { wide: true });
@@ -5113,6 +5237,13 @@ document.addEventListener("click", (event) => {
   if (action === "first-move") {
     const day = hqToday();
     if (day) { day.tomorrowFirstMove = value; saveState(); hqRenderModal(); }
+    return;
+  }
+  if (action === "desk") {
+    const input = hqModal()?.querySelector("#hqFirstMoveInput");
+    const day = hqToday();
+    if (input && day) day.tomorrowFirstMove = input.value.trim();
+    hqDeskAction(trigger.dataset.id, value);
     return;
   }
   if (action === "close-hq") { hqCloseHq(); return; }
