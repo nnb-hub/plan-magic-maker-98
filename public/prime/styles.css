@@ -4068,3 +4068,38 @@ body.dark-mode button.hq-ghost {
   box-shadow: none;
 }
 .hq-option-icon { font-family: inherit; }
+
+/* CEO daily review — circular intelligence, decision desk, tomorrow's command */
+.hq-h5 {
+  margin: 14px 0 6px;
+  font-size: 0.74rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.hq-intel,
+.hq-desk,
+.hq-tomorrow {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.hq-list-warn li { border-left: 3px solid var(--amber); }
+.hq-list-alert li { border-left: 3px solid var(--rose); }
+.hq-desk-item {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.hq-desk-item header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.hq-desk-item header strong { font-size: 0.9rem; }
