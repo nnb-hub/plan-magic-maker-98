@@ -3611,7 +3611,11 @@ function renderTimetable() {
       <label>Subject<select data-v3-subject>
         ${Object.keys(PLANNER_SUBJECTS).map((subject) => `<option value="${subject}" ${subject === draft.subject ? "selected" : ""}>${plannerSubjectMeta(subject).icon} ${subject}</option>`).join("")}
       </select></label>
+      <label>Duration<select data-v3-duration>
+        ${PLANNER_DURATIONS.map((mins) => `<option value="${mins}" ${mins === plannerPlannedMinutes(draft) ? "selected" : ""}>${mins} min</option>`).join("")}
+      </select></label>
       <label class="tp-form-topic">Topic<input data-v3-topic type="text" maxlength="80" placeholder="e.g. Motion in 1D" value="${escapeHtml(draft.topic || draft.task || "")}"></label>
+
       <div class="tp-form-actions">
         <button type="submit">${editing ? "Save Changes" : "Add to Timetable"}</button>
         ${editing ? '<button type="button" class="secondary-button" data-v3-cancel-edit>Cancel edit</button>' : ""}
