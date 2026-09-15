@@ -3645,7 +3645,15 @@ function renderTimetable() {
       </div>
     </div>
 
+    ${(() => {
+      const clashes = plannerClashes(plans);
+      return clashes.length
+        ? `<div class="tp-clash" role="status"><strong>Overlapping slots</strong><ul>${clashes.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul></div>`
+        : "";
+    })()}
+
     <div class="tp-list">${listMarkup}</div>
+
   `;
 
   if (plannerBound) return;
