@@ -3528,7 +3528,9 @@ function plannerSessionCard(plan) {
           ${activeBreak ? `<button type="button" class="tp-end-break" data-v3-end-break="${plan.id}">End Break &amp; Resume Mission</button>` : ""}
           <button type="button" class="secondary-button" data-v3-cancel-session="${plan.id}" ${plan.canceled ? "disabled" : ""}>Cancel</button>
           <button type="button" class="secondary-button" data-v3-edit="${plan.id}">Edit</button>
+          <button type="button" class="secondary-button" data-v3-copy="${plan.id}">Copy to tomorrow</button>
           <button type="button" class="text-button danger-button" data-v3-delete="${plan.id}">Remove</button>
+
         </div>
       </div>
     </article>`;
