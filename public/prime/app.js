@@ -3636,6 +3636,8 @@ function renderTimetable() {
         <button type="button" class="text-button" data-v3-jump="today">Today</button>
         <button type="button" class="text-button" data-v3-jump="tomorrow">Tomorrow</button>
         <button type="button" class="text-button" data-v3-copy-prev>Copy previous day</button>
+      </div>
+
 
       <div class="segmented-control tp-filter" aria-label="Filter sessions">
         ${[["all", "All"], ["pending", "Pending"], ["done", "Done"]].map(([key, label]) =>
