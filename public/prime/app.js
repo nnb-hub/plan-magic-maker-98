@@ -3440,8 +3440,53 @@ function plannerReadForm() {
     activityType: get("[data-v3-activity]"),
     subject: get("[data-v3-subject]"),
     topic: get("[data-v3-topic]").trim(),
+    plannedMinutes: Number(get("[data-v3-duration]")) || 60,
   };
 }
+
+const PLANNER_DURATIONS = [30, 45, 60, 90, 120];
+
+function plannerPlannedMinutes(plan) {
+  return Number(plan.plannedMinutes) > 0 ? Number(plan.plannedMinutes) : 60;
+}
+
+function plannerPlannedEnd(plan) {
+  const start = timeToMinutes(plan.time);
+  if (!Number.isFinite(start)) return "";
+  const end = start + plannerPlannedMinutes(plan);
+  return `${String(Math.floor(end / 60) % 24).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`;
+}
+
+function plannerClashes(plans) {
+  const sorted = plans
+    .filter((plan) => !plan.canceled)
+    .slice()
+    .sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
+  const clashes = [];
+  for (let i = 1; i < sorted.length; i += 1) {
+    const prev = sorted[i - 1];
+    const cur = sorted[i];
+    if (prev.date !== cur.date) continue;
+    if (timeToMinutes(prev.time) + plannerPlannedMinutes(prev) > timeToMinutes(cur.time)) {
+      clashes.push(`${prev.time} ${prev.subject} overlaps ${cur.time} ${cur.subject}`);
+    }
+  }
+  return clashes;
+}
+
+function plannerCopyPlanTo(planId, date) {
+  const plan = state.timetable.find((entry) => entry.id === planId);
+  if (!plan) return;
+  state.timetable = [...state.timetable, {
+    ...plan,
+    id: crypto.randomUUID ? crypto.randomUUID() : `plan-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    date,
+    done: false, login: "", logoff: "", loginAt: "", logoffAt: "", canceled: false, cancelReason: "",
+    breaks: [], sessionLogs: [], endTime: "", totalDuration: 0, status: "planned", archived: false,
+  }];
+  saveState();
+}
+
 
 function plannerSessionCard(plan) {
   const subject = plannerSubjectMeta(plan.subject);
@@ -3469,7 +3514,9 @@ function plannerSessionCard(plan) {
           <span class="tp-chip tp-chip-subject">${escapeHtml(plan.subject)}</span>
           <span class="tp-chip tp-chip-activity">${plannerIcon(plan.activityType)} ${escapeHtml(plan.activityType || "Study")}</span>
           <span class="tp-status tp-status-${stateKey}"><i></i>${escapeHtml(getPlanStateLabel(plan).replace(/^\S+\s/, ""))}</span>
+          <span class="tp-chip tp-chip-slot">${escapeHtml(plan.time)}&ndash;${escapeHtml(plannerPlannedEnd(plan))} &middot; ${plannerPlannedMinutes(plan)}m</span>
           ${duration ? `<span class="tp-chip tp-chip-duration">&#9201; ${escapeHtml(duration)}</span>` : ""}
+
         </div>
         <h4 class="tp-topic">${escapeHtml(plan.topic || plan.task || "Untitled session")}</h4>
         ${plannerTimingBlock(plan, now)}
@@ -3481,7 +3528,9 @@ function plannerSessionCard(plan) {
           ${activeBreak ? `<button type="button" class="tp-end-break" data-v3-end-break="${plan.id}">End Break &amp; Resume Mission</button>` : ""}
           <button type="button" class="secondary-button" data-v3-cancel-session="${plan.id}" ${plan.canceled ? "disabled" : ""}>Cancel</button>
           <button type="button" class="secondary-button" data-v3-edit="${plan.id}">Edit</button>
+          <button type="button" class="secondary-button" data-v3-copy="${plan.id}">Copy to tomorrow</button>
           <button type="button" class="text-button danger-button" data-v3-delete="${plan.id}">Remove</button>
+
         </div>
       </div>
     </article>`;
@@ -3562,7 +3611,11 @@ function renderTimetable() {
       <label>Subject<select data-v3-subject>
         ${Object.keys(PLANNER_SUBJECTS).map((subject) => `<option value="${subject}" ${subject === draft.subject ? "selected" : ""}>${plannerSubjectMeta(subject).icon} ${subject}</option>`).join("")}
       </select></label>
+      <label>Duration<select data-v3-duration>
+        ${PLANNER_DURATIONS.map((mins) => `<option value="${mins}" ${mins === plannerPlannedMinutes(draft) ? "selected" : ""}>${mins} min</option>`).join("")}
+      </select></label>
       <label class="tp-form-topic">Topic<input data-v3-topic type="text" maxlength="80" placeholder="e.g. Motion in 1D" value="${escapeHtml(draft.topic || draft.task || "")}"></label>
+
       <div class="tp-form-actions">
         <button type="submit">${editing ? "Save Changes" : "Add to Timetable"}</button>
         ${editing ? '<button type="button" class="secondary-button" data-v3-cancel-edit>Cancel edit</button>' : ""}
@@ -3582,14 +3635,25 @@ function renderTimetable() {
         <button type="button" class="text-button" data-v3-step="1" aria-label="Next day">&#8250;</button>
         <button type="button" class="text-button" data-v3-jump="today">Today</button>
         <button type="button" class="text-button" data-v3-jump="tomorrow">Tomorrow</button>
+        <button type="button" class="text-button" data-v3-copy-prev>Copy previous day</button>
       </div>
+
+
       <div class="segmented-control tp-filter" aria-label="Filter sessions">
         ${[["all", "All"], ["pending", "Pending"], ["done", "Done"]].map(([key, label]) =>
           `<button type="button" class="${plannerFilter === key ? "active" : ""}" data-v3-filter="${key}">${label}</button>`).join("")}
       </div>
     </div>
 
+    ${(() => {
+      const clashes = plannerClashes(plans);
+      return clashes.length
+        ? `<div class="tp-clash" role="status"><strong>Overlapping slots</strong><ul>${clashes.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul></div>`
+        : "";
+    })()}
+
     <div class="tp-list">${listMarkup}</div>
+
   `;
 
   if (plannerBound) return;
@@ -3619,7 +3683,25 @@ function renderTimetable() {
       renderTimetable();
       return;
     }
+    if (button.dataset.v3CopyPrev !== undefined) {
+      const current = plannerSelectedDate();
+      const source = plannerShiftDate(current, -1);
+      const sourcePlans = state.timetable.filter((plan) => plan.date === source && !plan.archived && !plan.canceled);
+      if (!sourcePlans.length) { plannerError = "Nothing to copy from the previous day."; renderTimetable(); return; }
+      sourcePlans.forEach((plan) => plannerCopyPlanTo(plan.id, current));
+      plannerError = "";
+      render();
+      return;
+    }
+    const copyId = button.dataset.v3Copy;
+    if (copyId) {
+      const plan = state.timetable.find((entry) => entry.id === copyId);
+      if (plan) plannerCopyPlanTo(copyId, plannerShiftDate(plan.date, 1));
+      render();
+      return;
+    }
     if (button.dataset.v3Quick) {
+
       const [time, subject, topic] = button.dataset.v3Quick.split("|");
       host.querySelector("[data-v3-time]").value = time;
       host.querySelector("[data-v3-subject]").value = subject;
