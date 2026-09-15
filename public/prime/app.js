@@ -3440,8 +3440,53 @@ function plannerReadForm() {
     activityType: get("[data-v3-activity]"),
     subject: get("[data-v3-subject]"),
     topic: get("[data-v3-topic]").trim(),
+    plannedMinutes: Number(get("[data-v3-duration]")) || 60,
   };
 }
+
+const PLANNER_DURATIONS = [30, 45, 60, 90, 120];
+
+function plannerPlannedMinutes(plan) {
+  return Number(plan.plannedMinutes) > 0 ? Number(plan.plannedMinutes) : 60;
+}
+
+function plannerPlannedEnd(plan) {
+  const start = timeToMinutes(plan.time);
+  if (!Number.isFinite(start)) return "";
+  const end = start + plannerPlannedMinutes(plan);
+  return `${String(Math.floor(end / 60) % 24).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`;
+}
+
+function plannerClashes(plans) {
+  const sorted = plans
+    .filter((plan) => !plan.canceled)
+    .slice()
+    .sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
+  const clashes = [];
+  for (let i = 1; i < sorted.length; i += 1) {
+    const prev = sorted[i - 1];
+    const cur = sorted[i];
+    if (prev.date !== cur.date) continue;
+    if (timeToMinutes(prev.time) + plannerPlannedMinutes(prev) > timeToMinutes(cur.time)) {
+      clashes.push(`${prev.time} ${prev.subject} overlaps ${cur.time} ${cur.subject}`);
+    }
+  }
+  return clashes;
+}
+
+function plannerCopyPlanTo(planId, date) {
+  const plan = state.timetable.find((entry) => entry.id === planId);
+  if (!plan) return;
+  state.timetable = [...state.timetable, {
+    ...plan,
+    id: crypto.randomUUID ? crypto.randomUUID() : `plan-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    date,
+    done: false, login: "", logoff: "", loginAt: "", logoffAt: "", canceled: false, cancelReason: "",
+    breaks: [], sessionLogs: [], endTime: "", totalDuration: 0, status: "planned", archived: false,
+  }];
+  saveState();
+}
+
 
 function plannerSessionCard(plan) {
   const subject = plannerSubjectMeta(plan.subject);
