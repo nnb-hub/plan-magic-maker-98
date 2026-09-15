@@ -3514,7 +3514,9 @@ function plannerSessionCard(plan) {
           <span class="tp-chip tp-chip-subject">${escapeHtml(plan.subject)}</span>
           <span class="tp-chip tp-chip-activity">${plannerIcon(plan.activityType)} ${escapeHtml(plan.activityType || "Study")}</span>
           <span class="tp-status tp-status-${stateKey}"><i></i>${escapeHtml(getPlanStateLabel(plan).replace(/^\S+\s/, ""))}</span>
+          <span class="tp-chip tp-chip-slot">${escapeHtml(plan.time)}&ndash;${escapeHtml(plannerPlannedEnd(plan))} &middot; ${plannerPlannedMinutes(plan)}m</span>
           ${duration ? `<span class="tp-chip tp-chip-duration">&#9201; ${escapeHtml(duration)}</span>` : ""}
+
         </div>
         <h4 class="tp-topic">${escapeHtml(plan.topic || plan.task || "Untitled session")}</h4>
         ${plannerTimingBlock(plan, now)}
