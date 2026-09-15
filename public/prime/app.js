@@ -3683,7 +3683,25 @@ function renderTimetable() {
       renderTimetable();
       return;
     }
+    if (button.dataset.v3CopyPrev !== undefined) {
+      const current = plannerSelectedDate();
+      const source = plannerShiftDate(current, -1);
+      const sourcePlans = state.timetable.filter((plan) => plan.date === source && !plan.archived && !plan.canceled);
+      if (!sourcePlans.length) { plannerError = "Nothing to copy from the previous day."; renderTimetable(); return; }
+      sourcePlans.forEach((plan) => plannerCopyPlanTo(plan.id, current));
+      plannerError = "";
+      render();
+      return;
+    }
+    const copyId = button.dataset.v3Copy;
+    if (copyId) {
+      const plan = state.timetable.find((entry) => entry.id === copyId);
+      if (plan) plannerCopyPlanTo(copyId, plannerShiftDate(plan.date, 1));
+      render();
+      return;
+    }
     if (button.dataset.v3Quick) {
+
       const [time, subject, topic] = button.dataset.v3Quick.split("|");
       host.querySelector("[data-v3-time]").value = time;
       host.querySelector("[data-v3-subject]").value = subject;
