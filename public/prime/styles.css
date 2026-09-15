@@ -4103,3 +4103,16 @@ body.dark-mode button.hq-ghost {
   margin-bottom: 6px;
 }
 .hq-desk-item header strong { font-size: 0.9rem; }
+
+/* Planner: slot chip + overlap notice */
+.tp-chip-slot { color: var(--muted); background: var(--soft); }
+.tp-clash {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(217, 119, 6, 0.35);
+  background: rgba(217, 119, 6, 0.1);
+  border-radius: 12px;
+  font-size: 0.85rem;
+}
+.tp-clash strong { display: block; margin-bottom: 4px; letter-spacing: 0.04em; text-transform: uppercase; font-size: 0.72rem; }
+.tp-clash ul { margin: 0; padding-left: 18px; }
