@@ -3661,7 +3661,9 @@ function renderTimetable() {
   const progress = plans.length ? Math.round((doneCount / plans.length) * 100) : 0;
   const execStats = plannerExecutionStats(plans);
 
-  const listMarkup = plannerRange === "day"
+  const listMarkup = plannerRange === "grid"
+    ? plannerWeekGridMarkup(selectedDate)
+    : plannerRange === "day"
     ? (plans.length
         ? plans.map(plannerSessionCard).join("")
         : `<div class="tp-empty"><strong>No sessions here yet</strong><span>Fill the form above to lock in your first mission for this date.</span></div>`)
@@ -3681,6 +3683,7 @@ function renderTimetable() {
       <div class="segmented-control" aria-label="Timetable range">
         <button type="button" class="${plannerRange === "day" ? "active" : ""}" data-v3-range="day">Day</button>
         <button type="button" class="${plannerRange === "week" ? "active" : ""}" data-v3-range="week">Next 7 days</button>
+        <button type="button" class="${plannerRange === "grid" ? "active" : ""}" data-v3-range="grid">Week grid</button>
       </div>
     </header>
 
