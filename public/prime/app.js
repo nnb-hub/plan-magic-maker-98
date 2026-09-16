@@ -52,6 +52,7 @@ const defaultState = {
   ],
   focusDays: [],
   manualBacklogCount: null,
+  plannerPresets: [],
   weakTopics: [
     { id: crypto.randomUUID(), subject: "Physics", topic: "Rotational Motion", priority: "High", action: "Redo marked questions" }
   ],
@@ -3188,7 +3189,7 @@ window.addEventListener("offline", () => {
 // ============================================================
 let plannerEditingId = null;
 let plannerBound = false;
-let plannerRange = "day"; // "day" | "week"
+let plannerRange = "day"; // "day" | "week" | "grid"
 let plannerFilter = "all"; // all | pending | done
 let plannerError = "";
 
@@ -3224,6 +3225,11 @@ function plannerShiftDate(date, days) {
 
 function plannerDatesInView(startDate) {
   if (plannerRange === "day") return [startDate];
+  if (plannerRange === "grid") {
+    const offset = (new Date(`${startDate}T00:00:00`).getDay() + 6) % 7;
+    const monday = plannerShiftDate(startDate, -offset);
+    return Array.from({ length: 7 }, (_, index) => plannerShiftDate(monday, index));
+  }
   return Array.from({ length: 7 }, (_, index) => plannerShiftDate(startDate, index));
 }
 
@@ -3440,6 +3446,8 @@ function plannerReadForm() {
     activityType: get("[data-v3-activity]"),
     subject: get("[data-v3-subject]"),
     topic: get("[data-v3-topic]").trim(),
+    notes: get("[data-v3-notes]").trim(),
+    repeat: get("[data-v3-repeat]") || "none",
     plannedMinutes: Number(get("[data-v3-duration]")) || 60,
   };
 }
@@ -3487,6 +3495,99 @@ function plannerCopyPlanTo(planId, date) {
   saveState();
 }
 
+/* Recurring missions: expand a saved payload into future dates.
+   "daily" -> every day, "weekdays" -> Mon-Fri, over the next 14 days.
+   Dates that already hold an identical slot (time+subject+topic) are skipped. */
+const PLANNER_REPEAT_DAYS = 14;
+
+function plannerExpandRepeat(payload) {
+  if (!payload.repeat || payload.repeat === "none") return [];
+  const additions = [];
+  for (let offset = 1; offset <= PLANNER_REPEAT_DAYS; offset += 1) {
+    const date = plannerShiftDate(payload.date, offset);
+    const weekday = new Date(`${date}T00:00:00`).getDay();
+    if (payload.repeat === "weekdays" && (weekday === 0 || weekday === 6)) continue;
+    const duplicate = state.timetable.some((plan) =>
+      plan.date === date && !plan.archived && !plan.canceled &&
+      plan.time === payload.time && plan.subject === payload.subject &&
+      (plan.topic || plan.task || "") === payload.topic);
+    if (duplicate) continue;
+    additions.push({
+      id: crypto.randomUUID ? crypto.randomUUID() : `plan-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      ...payload,
+      date,
+      done: false, login: "", logoff: "", loginAt: "", logoffAt: "", canceled: false, cancelReason: "",
+      breaks: [], sessionLogs: [], endTime: "", totalDuration: 0, status: "planned",
+    });
+  }
+  return additions;
+}
+
+/* Presets: reusable one-tap sessions stored inside existing state. */
+function plannerPresets() {
+  if (!Array.isArray(state.plannerPresets)) state.plannerPresets = [];
+  return state.plannerPresets;
+}
+
+/* Capacity check against the CEO productive-hours target (advisory only). */
+function plannerCapacityHint(date) {
+  const targetHours = Number(state.hq?.days?.[date]?.targetHours) || 0;
+  if (!targetHours) return "";
+  const planned = state.timetable
+    .filter((plan) => plan.date === date && !plan.archived && !plan.canceled)
+    .reduce((total, plan) => total + plannerPlannedMinutes(plan), 0);
+  const targetMinutes = targetHours * 60;
+  if (planned <= targetMinutes) return "";
+  const over = planned - targetMinutes;
+  return `Planned load is ${Math.floor(over / 60) ? `${Math.floor(over / 60)}h ` : ""}${over % 60 ? `${over % 60}m` : ""} over today's ${targetHours}h productive target. Consider trimming or moving a session.`;
+}
+
+/* Clash auto-fix: nudge the later session of each overlap to the first
+   free slot after the earlier session ends. User confirms; nothing silent. */
+function plannerSuggestClashFixes(date) {
+  const sorted = state.timetable
+    .filter((plan) => plan.date === date && !plan.archived && !plan.canceled)
+    .slice()
+    .sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
+  const fixes = [];
+  for (let i = 1; i < sorted.length; i += 1) {
+    const prev = sorted[i - 1];
+    const cur = sorted[i];
+    const prevEnd = timeToMinutes(prev.time) + plannerPlannedMinutes(prev);
+    if (prevEnd > timeToMinutes(cur.time)) {
+      const newStart = `${String(Math.floor(prevEnd / 60) % 24).padStart(2, "0")}:${String(prevEnd % 60).padStart(2, "0")}`;
+      fixes.push({ id: cur.id, from: cur.time, to: newStart, subject: cur.subject });
+      cur.time = newStart; // local copy so chained clashes resolve in order
+    }
+  }
+  return fixes;
+}
+
+/* Week grid: Monday-Sunday summary around the selected date. */
+function plannerWeekGridMarkup(selectedDate) {
+  const day = new Date(`${selectedDate}T00:00:00`);
+  const mondayOffset = (day.getDay() + 6) % 7;
+  const monday = plannerShiftDate(selectedDate, -mondayOffset);
+  const cells = Array.from({ length: 7 }, (_, index) => {
+    const date = plannerShiftDate(monday, index);
+    const dayPlans = state.timetable
+      .filter((plan) => plan.date === date && !plan.archived && !plan.canceled)
+      .sort((a, b) => String(a.time).localeCompare(String(b.time)));
+    const label = new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric" });
+    const chips = dayPlans.length
+      ? dayPlans.map((plan) => {
+          const meta = plannerSubjectMeta(plan.subject);
+          return `<span class="tp-week-chip${plan.done ? " is-done" : ""}" data-subject="${meta.key}">${escapeHtml(plan.time)} ${escapeHtml(plan.subject)}</span>`;
+        }).join("")
+      : `<span class="tp-week-empty">Free</span>`;
+    return `<button type="button" class="tp-week-cell${date === todayKey() ? " is-today" : ""}" data-v3-week-jump="${date}">
+      <strong>${escapeHtml(label)}</strong>
+      <span class="tp-week-chips">${chips}</span>
+    </button>`;
+  });
+  return `<div class="tp-week-grid">${cells.join("")}</div>`;
+}
+
 
 function plannerSessionCard(plan) {
   const subject = plannerSubjectMeta(plan.subject);
@@ -3519,6 +3620,7 @@ function plannerSessionCard(plan) {
 
         </div>
         <h4 class="tp-topic">${escapeHtml(plan.topic || plan.task || "Untitled session")}</h4>
+        ${plan.notes ? `<p class="tp-notes">${escapeHtml(String(plan.notes).split("\n")[0])}</p>` : ""}
         ${plannerTimingBlock(plan, now)}
         ${plannerBreakBlock(plan, now)}
         <div class="tp-actions">
@@ -3529,6 +3631,10 @@ function plannerSessionCard(plan) {
           <button type="button" class="secondary-button" data-v3-cancel-session="${plan.id}" ${plan.canceled ? "disabled" : ""}>Cancel</button>
           <button type="button" class="secondary-button" data-v3-edit="${plan.id}">Edit</button>
           <button type="button" class="secondary-button" data-v3-copy="${plan.id}">Copy to tomorrow</button>
+          <span class="tp-reorder" aria-label="Reorder session">
+            <button type="button" class="text-button" data-v3-move="${plan.id}" data-v3-dir="-1" title="Move earlier">&#8593;</button>
+            <button type="button" class="text-button" data-v3-move="${plan.id}" data-v3-dir="1" title="Move later">&#8595;</button>
+          </span>
           <button type="button" class="text-button danger-button" data-v3-delete="${plan.id}">Remove</button>
 
         </div>
@@ -3556,7 +3662,9 @@ function renderTimetable() {
   const progress = plans.length ? Math.round((doneCount / plans.length) * 100) : 0;
   const execStats = plannerExecutionStats(plans);
 
-  const listMarkup = plannerRange === "day"
+  const listMarkup = plannerRange === "grid"
+    ? plannerWeekGridMarkup(selectedDate)
+    : plannerRange === "day"
     ? (plans.length
         ? plans.map(plannerSessionCard).join("")
         : `<div class="tp-empty"><strong>No sessions here yet</strong><span>Fill the form above to lock in your first mission for this date.</span></div>`)
@@ -3576,6 +3684,7 @@ function renderTimetable() {
       <div class="segmented-control" aria-label="Timetable range">
         <button type="button" class="${plannerRange === "day" ? "active" : ""}" data-v3-range="day">Day</button>
         <button type="button" class="${plannerRange === "week" ? "active" : ""}" data-v3-range="week">Next 7 days</button>
+        <button type="button" class="${plannerRange === "grid" ? "active" : ""}" data-v3-range="grid">Week grid</button>
       </div>
     </header>
 
@@ -3615,9 +3724,15 @@ function renderTimetable() {
         ${PLANNER_DURATIONS.map((mins) => `<option value="${mins}" ${mins === plannerPlannedMinutes(draft) ? "selected" : ""}>${mins} min</option>`).join("")}
       </select></label>
       <label class="tp-form-topic">Topic<input data-v3-topic type="text" maxlength="80" placeholder="e.g. Motion in 1D" value="${escapeHtml(draft.topic || draft.task || "")}"></label>
+      <label class="tp-form-topic">Notes<input data-v3-notes type="text" maxlength="160" placeholder="Optional context, shown on the card" value="${escapeHtml(draft.notes || "")}"></label>
+      <label>Repeat<select data-v3-repeat>
+        ${[["none", "Does not repeat"], ["daily", "Daily (next 14 days)"], ["weekdays", "Weekdays (next 14 days)"]]
+          .map(([value, label]) => `<option value="${value}" ${value === (draft.repeat || "none") ? "selected" : ""}>${label}</option>`).join("")}
+      </select></label>
 
       <div class="tp-form-actions">
         <button type="submit">${editing ? "Save Changes" : "Add to Timetable"}</button>
+        <button type="button" class="secondary-button" data-v3-save-preset>Save as preset</button>
         ${editing ? '<button type="button" class="secondary-button" data-v3-cancel-edit>Cancel edit</button>' : ""}
       </div>
       <div class="tp-quickadd">
@@ -3625,6 +3740,17 @@ function renderTimetable() {
         ${[["06:00", "Physics", "Concept + DPP"], ["14:45", "Chemistry", "Revision + MCQs"], ["19:30", "Botany", "NCERT active recall"]]
           .map(([time, subject, topic]) => `<button type="button" class="text-button" data-v3-quick='${time}|${subject}|${topic}'>${time} ${subject}</button>`).join("")}
       </div>
+      ${(() => {
+        const presets = plannerPresets();
+        if (!presets.length) return "";
+        return `<div class="tp-quickadd tp-presets">
+          <span>My presets</span>
+          ${presets.map((preset) => `<span class="tp-preset">
+            <button type="button" class="text-button" data-v3-preset="${preset.id}">${escapeHtml(preset.subject)} &middot; ${escapeHtml(preset.topic)} &middot; ${preset.plannedMinutes}m</button>
+            <button type="button" class="tp-preset-del" data-v3-preset-del="${preset.id}" aria-label="Remove preset">&times;</button>
+          </span>`).join("")}
+        </div>`;
+      })()}
       ${plannerError ? `<p class="tp-error" role="alert">${escapeHtml(plannerError)}</p>` : ""}
     </form>
 
@@ -3646,9 +3772,16 @@ function renderTimetable() {
     </div>
 
     ${(() => {
+      const hint = plannerCapacityHint(selectedDate);
+      return hint && plannerRange === "day"
+        ? `<div class="tp-capacity" role="status"><strong>Capacity hint</strong><span>${escapeHtml(hint)}</span></div>`
+        : "";
+    })()}
+
+    ${(() => {
       const clashes = plannerClashes(plans);
       return clashes.length
-        ? `<div class="tp-clash" role="status"><strong>Overlapping slots</strong><ul>${clashes.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul></div>`
+        ? `<div class="tp-clash" role="status"><strong>Overlapping slots</strong><ul>${clashes.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul><button type="button" class="secondary-button" data-v3-fix-clash>Suggest fix</button></div>`
         : "";
     })()}
 
@@ -3673,7 +3806,7 @@ function renderTimetable() {
     if (button.dataset.v3Filter) { plannerFilter = button.dataset.v3Filter; renderTimetable(); return; }
     if (button.dataset.v3Step) {
       plannerEditingId = null;
-      host.dataset.plannerDate = plannerShiftDate(plannerSelectedDate(), Number(button.dataset.v3Step) * (plannerRange === "week" ? 7 : 1));
+      host.dataset.plannerDate = plannerShiftDate(plannerSelectedDate(), Number(button.dataset.v3Step) * (plannerRange === "day" ? 1 : 7));
       renderTimetable();
       return;
     }
@@ -3681,6 +3814,89 @@ function renderTimetable() {
       plannerEditingId = null;
       host.dataset.plannerDate = button.dataset.v3Jump === "tomorrow" ? todayKey(1) : todayKey();
       renderTimetable();
+      return;
+    }
+    if (button.dataset.v3WeekJump) {
+      plannerEditingId = null;
+      plannerRange = "day";
+      host.dataset.plannerDate = button.dataset.v3WeekJump;
+      renderTimetable();
+      return;
+    }
+    if (button.dataset.v3FixClash !== undefined) {
+      const current = plannerSelectedDate();
+      const fixes = plannerSuggestClashFixes(current);
+      if (!fixes.length) { plannerError = "No overlaps to fix on this date."; renderTimetable(); return; }
+      const summary = fixes.map((fix) => `${fix.subject}: ${fix.from} -> ${fix.to}`).join("\n");
+      if (!window.confirm(`Move the later session of each overlap?\n\n${summary}`)) return;
+      state.timetable = state.timetable.map((plan) => {
+        const fix = fixes.find((entry) => entry.id === plan.id);
+        return fix ? { ...plan, time: fix.to, startTime: fix.to, rescheduled: true, originalTime: plan.originalTime || fix.from } : plan;
+      });
+      plannerError = "";
+      saveState();
+      render();
+      return;
+    }
+    if (button.dataset.v3SavePreset !== undefined) {
+      const data = plannerReadForm();
+      if (!data || !data.topic) { plannerError = "Add a topic before saving a preset."; renderTimetable(); return; }
+      const presets = plannerPresets();
+      if (presets.some((preset) => preset.subject === data.subject && preset.topic === data.topic && preset.plannedMinutes === data.plannedMinutes)) {
+        plannerError = "That preset already exists.";
+        renderTimetable();
+        return;
+      }
+      presets.push({
+        id: crypto.randomUUID ? crypto.randomUUID() : `preset-${Date.now()}`,
+        activityType: data.activityType, subject: data.subject,
+        topic: data.topic, notes: data.notes, plannedMinutes: data.plannedMinutes,
+      });
+      plannerError = "";
+      saveState();
+      renderTimetable();
+      return;
+    }
+    const presetId = button.dataset.v3Preset;
+    if (presetId) {
+      const preset = plannerPresets().find((entry) => entry.id === presetId);
+      if (preset) {
+        host.querySelector("[data-v3-activity]").value = preset.activityType || "Study";
+        host.querySelector("[data-v3-subject]").value = preset.subject;
+        host.querySelector("[data-v3-topic]").value = preset.topic || "";
+        host.querySelector("[data-v3-notes]").value = preset.notes || "";
+        host.querySelector("[data-v3-duration]").value = String(preset.plannedMinutes || 60);
+        host.querySelector("[data-v3-topic]")?.focus();
+      }
+      return;
+    }
+    const presetDelId = button.dataset.v3PresetDel;
+    if (presetDelId) {
+      state.plannerPresets = plannerPresets().filter((entry) => entry.id !== presetDelId);
+      saveState();
+      renderTimetable();
+      return;
+    }
+    const moveId = button.dataset.v3Move;
+    if (moveId) {
+      const dir = Number(button.dataset.v3Dir) || 0;
+      const plan = state.timetable.find((entry) => entry.id === moveId);
+      if (!plan || !dir) return;
+      const dayPlans = state.timetable
+        .filter((entry) => entry.date === plan.date && !entry.archived && !entry.canceled)
+        .sort((a, b) => String(a.time).localeCompare(String(b.time)));
+      const index = dayPlans.findIndex((entry) => entry.id === moveId);
+      const neighbor = dayPlans[index + dir];
+      if (!neighbor) return;
+      const timeA = plan.time;
+      const timeB = neighbor.time;
+      state.timetable = state.timetable.map((entry) => {
+        if (entry.id === plan.id) return { ...entry, time: timeB, startTime: timeB };
+        if (entry.id === neighbor.id) return { ...entry, time: timeA, startTime: timeA };
+        return entry;
+      });
+      saveState();
+      render();
       return;
     }
     if (button.dataset.v3CopyPrev !== undefined) {
@@ -3797,12 +4013,13 @@ function plannerSaveFromForm() {
   if (plannerEditingId) {
     state.timetable = state.timetable.map((plan) => (plan.id === plannerEditingId ? { ...plan, ...payload } : plan));
   } else {
-    state.timetable = [...state.timetable, {
+    const fresh = {
       id: crypto.randomUUID ? crypto.randomUUID() : `plan-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       ...payload,
       done: false, login: "", logoff: "", canceled: false, cancelReason: "",
       breaks: [], sessionLogs: [], endTime: "", totalDuration: 0, status: "planned",
-    }];
+    };
+    state.timetable = [...state.timetable, fresh, ...plannerExpandRepeat(payload)];
   }
   plannerEditingId = null;
   host.dataset.plannerDate = data.date;
