@@ -3489,6 +3489,99 @@ function plannerCopyPlanTo(planId, date) {
   saveState();
 }
 
+/* Recurring missions: expand a saved payload into future dates.
+   "daily" -> every day, "weekdays" -> Mon-Fri, over the next 14 days.
+   Dates that already hold an identical slot (time+subject+topic) are skipped. */
+const PLANNER_REPEAT_DAYS = 14;
+
+function plannerExpandRepeat(payload) {
+  if (!payload.repeat || payload.repeat === "none") return [];
+  const additions = [];
+  for (let offset = 1; offset <= PLANNER_REPEAT_DAYS; offset += 1) {
+    const date = plannerShiftDate(payload.date, offset);
+    const weekday = new Date(`${date}T00:00:00`).getDay();
+    if (payload.repeat === "weekdays" && (weekday === 0 || weekday === 6)) continue;
+    const duplicate = state.timetable.some((plan) =>
+      plan.date === date && !plan.archived && !plan.canceled &&
+      plan.time === payload.time && plan.subject === payload.subject &&
+      (plan.topic || plan.task || "") === payload.topic);
+    if (duplicate) continue;
+    additions.push({
+      id: crypto.randomUUID ? crypto.randomUUID() : `plan-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      ...payload,
+      date,
+      done: false, login: "", logoff: "", loginAt: "", logoffAt: "", canceled: false, cancelReason: "",
+      breaks: [], sessionLogs: [], endTime: "", totalDuration: 0, status: "planned",
+    });
+  }
+  return additions;
+}
+
+/* Presets: reusable one-tap sessions stored inside existing state. */
+function plannerPresets() {
+  if (!Array.isArray(state.plannerPresets)) state.plannerPresets = [];
+  return state.plannerPresets;
+}
+
+/* Capacity check against the CEO productive-hours target (advisory only). */
+function plannerCapacityHint(date) {
+  const targetHours = Number(state.hq?.days?.[date]?.targetHours) || 0;
+  if (!targetHours) return "";
+  const planned = state.timetable
+    .filter((plan) => plan.date === date && !plan.archived && !plan.canceled)
+    .reduce((total, plan) => total + plannerPlannedMinutes(plan), 0);
+  const targetMinutes = targetHours * 60;
+  if (planned <= targetMinutes) return "";
+  const over = planned - targetMinutes;
+  return `Planned load is ${Math.floor(over / 60) ? `${Math.floor(over / 60)}h ` : ""}${over % 60 ? `${over % 60}m` : ""} over today's ${targetHours}h productive target. Consider trimming or moving a session.`;
+}
+
+/* Clash auto-fix: nudge the later session of each overlap to the first
+   free slot after the earlier session ends. User confirms; nothing silent. */
+function plannerSuggestClashFixes(date) {
+  const sorted = state.timetable
+    .filter((plan) => plan.date === date && !plan.archived && !plan.canceled)
+    .slice()
+    .sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
+  const fixes = [];
+  for (let i = 1; i < sorted.length; i += 1) {
+    const prev = sorted[i - 1];
+    const cur = sorted[i];
+    const prevEnd = timeToMinutes(prev.time) + plannerPlannedMinutes(prev);
+    if (prevEnd > timeToMinutes(cur.time)) {
+      const newStart = `${String(Math.floor(prevEnd / 60) % 24).padStart(2, "0")}:${String(prevEnd % 60).padStart(2, "0")}`;
+      fixes.push({ id: cur.id, from: cur.time, to: newStart, subject: cur.subject });
+      cur.time = newStart; // local copy so chained clashes resolve in order
+    }
+  }
+  return fixes;
+}
+
+/* Week grid: Monday-Sunday summary around the selected date. */
+function plannerWeekGridMarkup(selectedDate) {
+  const day = new Date(`${selectedDate}T00:00:00`);
+  const mondayOffset = (day.getDay() + 6) % 7;
+  const monday = plannerShiftDate(selectedDate, -mondayOffset);
+  const cells = Array.from({ length: 7 }, (_, index) => {
+    const date = plannerShiftDate(monday, index);
+    const dayPlans = state.timetable
+      .filter((plan) => plan.date === date && !plan.archived && !plan.canceled)
+      .sort((a, b) => String(a.time).localeCompare(String(b.time)));
+    const label = new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric" });
+    const chips = dayPlans.length
+      ? dayPlans.map((plan) => {
+          const meta = plannerSubjectMeta(plan.subject);
+          return `<span class="tp-week-chip${plan.done ? " is-done" : ""}" data-subject="${meta.key}">${escapeHtml(plan.time)} ${escapeHtml(plan.subject)}</span>`;
+        }).join("")
+      : `<span class="tp-week-empty">Free</span>`;
+    return `<button type="button" class="tp-week-cell${date === todayKey() ? " is-today" : ""}" data-v3-week-jump="${date}">
+      <strong>${escapeHtml(label)}</strong>
+      <span class="tp-week-chips">${chips}</span>
+    </button>`;
+  });
+  return `<div class="tp-week-grid">${cells.join("")}</div>`;
+}
+
 
 function plannerSessionCard(plan) {
   const subject = plannerSubjectMeta(plan.subject);
