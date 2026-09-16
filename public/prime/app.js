@@ -4012,12 +4012,13 @@ function plannerSaveFromForm() {
   if (plannerEditingId) {
     state.timetable = state.timetable.map((plan) => (plan.id === plannerEditingId ? { ...plan, ...payload } : plan));
   } else {
-    state.timetable = [...state.timetable, {
+    const fresh = {
       id: crypto.randomUUID ? crypto.randomUUID() : `plan-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       ...payload,
       done: false, login: "", logoff: "", canceled: false, cancelReason: "",
       breaks: [], sessionLogs: [], endTime: "", totalDuration: 0, status: "planned",
-    }];
+    };
+    state.timetable = [...state.timetable, fresh, ...plannerExpandRepeat(payload)];
   }
   plannerEditingId = null;
   host.dataset.plannerDate = data.date;
