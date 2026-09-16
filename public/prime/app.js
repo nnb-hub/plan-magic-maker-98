@@ -3440,6 +3440,8 @@ function plannerReadForm() {
     activityType: get("[data-v3-activity]"),
     subject: get("[data-v3-subject]"),
     topic: get("[data-v3-topic]").trim(),
+    notes: get("[data-v3-notes]").trim(),
+    repeat: get("[data-v3-repeat]") || "none",
     plannedMinutes: Number(get("[data-v3-duration]")) || 60,
   };
 }
