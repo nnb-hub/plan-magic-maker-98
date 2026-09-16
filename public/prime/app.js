@@ -3619,6 +3619,7 @@ function plannerSessionCard(plan) {
 
         </div>
         <h4 class="tp-topic">${escapeHtml(plan.topic || plan.task || "Untitled session")}</h4>
+        ${plan.notes ? `<p class="tp-notes">${escapeHtml(String(plan.notes).split("\n")[0])}</p>` : ""}
         ${plannerTimingBlock(plan, now)}
         ${plannerBreakBlock(plan, now)}
         <div class="tp-actions">
@@ -3629,6 +3630,10 @@ function plannerSessionCard(plan) {
           <button type="button" class="secondary-button" data-v3-cancel-session="${plan.id}" ${plan.canceled ? "disabled" : ""}>Cancel</button>
           <button type="button" class="secondary-button" data-v3-edit="${plan.id}">Edit</button>
           <button type="button" class="secondary-button" data-v3-copy="${plan.id}">Copy to tomorrow</button>
+          <span class="tp-reorder" aria-label="Reorder session">
+            <button type="button" class="text-button" data-v3-move="${plan.id}" data-v3-dir="-1" title="Move earlier">&#8593;</button>
+            <button type="button" class="text-button" data-v3-move="${plan.id}" data-v3-dir="1" title="Move later">&#8595;</button>
+          </span>
           <button type="button" class="text-button danger-button" data-v3-delete="${plan.id}">Remove</button>
 
         </div>
