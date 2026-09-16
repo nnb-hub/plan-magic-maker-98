@@ -52,6 +52,7 @@ const defaultState = {
   ],
   focusDays: [],
   manualBacklogCount: null,
+  plannerPresets: [],
   weakTopics: [
     { id: crypto.randomUUID(), subject: "Physics", topic: "Rotational Motion", priority: "High", action: "Redo marked questions" }
   ],
@@ -3805,7 +3806,7 @@ function renderTimetable() {
     if (button.dataset.v3Filter) { plannerFilter = button.dataset.v3Filter; renderTimetable(); return; }
     if (button.dataset.v3Step) {
       plannerEditingId = null;
-      host.dataset.plannerDate = plannerShiftDate(plannerSelectedDate(), Number(button.dataset.v3Step) * (plannerRange === "week" ? 7 : 1));
+      host.dataset.plannerDate = plannerShiftDate(plannerSelectedDate(), Number(button.dataset.v3Step) * (plannerRange === "day" ? 1 : 7));
       renderTimetable();
       return;
     }
