@@ -3815,6 +3815,89 @@ function renderTimetable() {
       renderTimetable();
       return;
     }
+    if (button.dataset.v3WeekJump) {
+      plannerEditingId = null;
+      plannerRange = "day";
+      host.dataset.plannerDate = button.dataset.v3WeekJump;
+      renderTimetable();
+      return;
+    }
+    if (button.dataset.v3FixClash !== undefined) {
+      const current = plannerSelectedDate();
+      const fixes = plannerSuggestClashFixes(current);
+      if (!fixes.length) { plannerError = "No overlaps to fix on this date."; renderTimetable(); return; }
+      const summary = fixes.map((fix) => `${fix.subject}: ${fix.from} -> ${fix.to}`).join("\n");
+      if (!window.confirm(`Move the later session of each overlap?\n\n${summary}`)) return;
+      state.timetable = state.timetable.map((plan) => {
+        const fix = fixes.find((entry) => entry.id === plan.id);
+        return fix ? { ...plan, time: fix.to, startTime: fix.to, rescheduled: true, originalTime: plan.originalTime || fix.from } : plan;
+      });
+      plannerError = "";
+      saveState();
+      render();
+      return;
+    }
+    if (button.dataset.v3SavePreset !== undefined) {
+      const data = plannerReadForm();
+      if (!data || !data.topic) { plannerError = "Add a topic before saving a preset."; renderTimetable(); return; }
+      const presets = plannerPresets();
+      if (presets.some((preset) => preset.subject === data.subject && preset.topic === data.topic && preset.plannedMinutes === data.plannedMinutes)) {
+        plannerError = "That preset already exists.";
+        renderTimetable();
+        return;
+      }
+      presets.push({
+        id: crypto.randomUUID ? crypto.randomUUID() : `preset-${Date.now()}`,
+        activityType: data.activityType, subject: data.subject,
+        topic: data.topic, notes: data.notes, plannedMinutes: data.plannedMinutes,
+      });
+      plannerError = "";
+      saveState();
+      renderTimetable();
+      return;
+    }
+    const presetId = button.dataset.v3Preset;
+    if (presetId) {
+      const preset = plannerPresets().find((entry) => entry.id === presetId);
+      if (preset) {
+        host.querySelector("[data-v3-activity]").value = preset.activityType || "Study";
+        host.querySelector("[data-v3-subject]").value = preset.subject;
+        host.querySelector("[data-v3-topic]").value = preset.topic || "";
+        host.querySelector("[data-v3-notes]").value = preset.notes || "";
+        host.querySelector("[data-v3-duration]").value = String(preset.plannedMinutes || 60);
+        host.querySelector("[data-v3-topic]")?.focus();
+      }
+      return;
+    }
+    const presetDelId = button.dataset.v3PresetDel;
+    if (presetDelId) {
+      state.plannerPresets = plannerPresets().filter((entry) => entry.id !== presetDelId);
+      saveState();
+      renderTimetable();
+      return;
+    }
+    const moveId = button.dataset.v3Move;
+    if (moveId) {
+      const dir = Number(button.dataset.v3Dir) || 0;
+      const plan = state.timetable.find((entry) => entry.id === moveId);
+      if (!plan || !dir) return;
+      const dayPlans = state.timetable
+        .filter((entry) => entry.date === plan.date && !entry.archived && !entry.canceled)
+        .sort((a, b) => String(a.time).localeCompare(String(b.time)));
+      const index = dayPlans.findIndex((entry) => entry.id === moveId);
+      const neighbor = dayPlans[index + dir];
+      if (!neighbor) return;
+      const timeA = plan.time;
+      const timeB = neighbor.time;
+      state.timetable = state.timetable.map((entry) => {
+        if (entry.id === plan.id) return { ...entry, time: timeB, startTime: timeB };
+        if (entry.id === neighbor.id) return { ...entry, time: timeA, startTime: timeA };
+        return entry;
+      });
+      saveState();
+      render();
+      return;
+    }
     if (button.dataset.v3CopyPrev !== undefined) {
       const current = plannerSelectedDate();
       const source = plannerShiftDate(current, -1);
