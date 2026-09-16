@@ -3771,9 +3771,16 @@ function renderTimetable() {
     </div>
 
     ${(() => {
+      const hint = plannerCapacityHint(selectedDate);
+      return hint && plannerRange === "day"
+        ? `<div class="tp-capacity" role="status"><strong>Capacity hint</strong><span>${escapeHtml(hint)}</span></div>`
+        : "";
+    })()}
+
+    ${(() => {
       const clashes = plannerClashes(plans);
       return clashes.length
-        ? `<div class="tp-clash" role="status"><strong>Overlapping slots</strong><ul>${clashes.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul></div>`
+        ? `<div class="tp-clash" role="status"><strong>Overlapping slots</strong><ul>${clashes.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul><button type="button" class="secondary-button" data-v3-fix-clash>Suggest fix</button></div>`
         : "";
     })()}
 
