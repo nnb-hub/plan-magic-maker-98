@@ -3188,7 +3188,7 @@ window.addEventListener("offline", () => {
 // ============================================================
 let plannerEditingId = null;
 let plannerBound = false;
-let plannerRange = "day"; // "day" | "week"
+let plannerRange = "day"; // "day" | "week" | "grid"
 let plannerFilter = "all"; // all | pending | done
 let plannerError = "";
 
@@ -3224,6 +3224,11 @@ function plannerShiftDate(date, days) {
 
 function plannerDatesInView(startDate) {
   if (plannerRange === "day") return [startDate];
+  if (plannerRange === "grid") {
+    const offset = (new Date(`${startDate}T00:00:00`).getDay() + 6) % 7;
+    const monday = plannerShiftDate(startDate, -offset);
+    return Array.from({ length: 7 }, (_, index) => plannerShiftDate(monday, index));
+  }
   return Array.from({ length: 7 }, (_, index) => plannerShiftDate(startDate, index));
 }
 
