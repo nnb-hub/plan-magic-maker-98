@@ -3755,6 +3755,11 @@ function renderTimetable() {
         <button type="button" class="secondary-button" data-v3-save-preset>Save as preset</button>
       </details>
 
+      <div class="tp-form-actions">
+        <button type="submit">${editing ? "Save Changes" : "Add to Timetable"}</button>
+        ${editing ? '<button type="button" class="secondary-button" data-v3-cancel-edit>Cancel edit</button>' : ""}
+      </div>
+
       ${plannerError ? `<p class="tp-error" role="alert">${escapeHtml(plannerError)}</p>` : ""}
     </form>
 
