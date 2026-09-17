@@ -3727,33 +3727,34 @@ function renderTimetable() {
         ${PLANNER_DURATIONS.map((mins) => `<option value="${mins}" ${mins === plannerPlannedMinutes(draft) ? "selected" : ""}>${mins} min</option>`).join("")}
       </select></label>
       <label class="tp-form-topic">Topic<input data-v3-topic type="text" maxlength="80" placeholder="e.g. Motion in 1D" value="${escapeHtml(draft.topic || draft.task || "")}"></label>
-      <label class="tp-form-topic">Notes<input data-v3-notes type="text" maxlength="160" placeholder="Optional context, shown on the card" value="${escapeHtml(draft.notes || "")}"></label>
-      <label>Repeat<select data-v3-repeat>
-        ${[["none", "Does not repeat"], ["daily", "Daily (next 14 days)"], ["weekdays", "Weekdays (next 14 days)"]]
-          .map(([value, label]) => `<option value="${value}" ${value === (draft.repeat || "none") ? "selected" : ""}>${label}</option>`).join("")}
-      </select></label>
-
-      <div class="tp-form-actions">
-        <button type="submit">${editing ? "Save Changes" : "Add to Timetable"}</button>
+      <details class="tp-more tp-form-more" ${draft.notes || (draft.repeat && draft.repeat !== "none") ? "open" : ""}>
+        <summary>More options</summary>
+        <div class="tp-more-grid">
+          <label class="tp-form-topic">Notes<input data-v3-notes type="text" maxlength="160" placeholder="Optional context, shown on the card" value="${escapeHtml(draft.notes || "")}"></label>
+          <label>Repeat<select data-v3-repeat>
+            ${[["none", "Does not repeat"], ["daily", "Daily (next 14 days)"], ["weekdays", "Weekdays (next 14 days)"]]
+              .map(([value, label]) => `<option value="${value}" ${value === (draft.repeat || "none") ? "selected" : ""}>${label}</option>`).join("")}
+          </select></label>
+        </div>
+        <div class="tp-quickadd">
+          <span>Quick add</span>
+          ${[["06:00", "Physics", "Concept + DPP"], ["14:45", "Chemistry", "Revision + MCQs"], ["19:30", "Botany", "NCERT active recall"]]
+            .map(([time, subject, topic]) => `<button type="button" class="text-button" data-v3-quick='${time}|${subject}|${topic}'>${time} ${subject}</button>`).join("")}
+        </div>
+        ${(() => {
+          const presets = plannerPresets();
+          if (!presets.length) return "";
+          return `<div class="tp-quickadd tp-presets">
+            <span>My presets</span>
+            ${presets.map((preset) => `<span class="tp-preset">
+              <button type="button" class="text-button" data-v3-preset="${preset.id}">${escapeHtml(preset.subject)} &middot; ${escapeHtml(preset.topic)} &middot; ${preset.plannedMinutes}m</button>
+              <button type="button" class="tp-preset-del" data-v3-preset-del="${preset.id}" aria-label="Remove preset">&times;</button>
+            </span>`).join("")}
+          </div>`;
+        })()}
         <button type="button" class="secondary-button" data-v3-save-preset>Save as preset</button>
-        ${editing ? '<button type="button" class="secondary-button" data-v3-cancel-edit>Cancel edit</button>' : ""}
-      </div>
-      <div class="tp-quickadd">
-        <span>Quick add</span>
-        ${[["06:00", "Physics", "Concept + DPP"], ["14:45", "Chemistry", "Revision + MCQs"], ["19:30", "Botany", "NCERT active recall"]]
-          .map(([time, subject, topic]) => `<button type="button" class="text-button" data-v3-quick='${time}|${subject}|${topic}'>${time} ${subject}</button>`).join("")}
-      </div>
-      ${(() => {
-        const presets = plannerPresets();
-        if (!presets.length) return "";
-        return `<div class="tp-quickadd tp-presets">
-          <span>My presets</span>
-          ${presets.map((preset) => `<span class="tp-preset">
-            <button type="button" class="text-button" data-v3-preset="${preset.id}">${escapeHtml(preset.subject)} &middot; ${escapeHtml(preset.topic)} &middot; ${preset.plannedMinutes}m</button>
-            <button type="button" class="tp-preset-del" data-v3-preset-del="${preset.id}" aria-label="Remove preset">&times;</button>
-          </span>`).join("")}
-        </div>`;
-      })()}
+      </details>
+
       ${plannerError ? `<p class="tp-error" role="alert">${escapeHtml(plannerError)}</p>` : ""}
     </form>
 
