@@ -3602,10 +3602,12 @@ function plannerSessionCard(plan) {
     : verdict ? verdict.kind
     : "upcoming";
   const activeBreak = activePlanBreak(plan);
+  const title = escapeHtml(plan.topic || plan.task || "Untitled session");
+  const at = `${escapeHtml(plan.time)} ${title}`;
   return `
-    <article class="tp-card tp-${stateKey} tp-time-${timingKey}" data-subject="${subject.key}">
+    <article class="tp-card tp-${stateKey} tp-time-${timingKey}" data-subject="${subject.key}" aria-label="${at}">
       <label class="tp-check">
-        <input type="checkbox" data-v3-toggle="${plan.id}" ${plan.done ? "checked" : ""} ${plan.canceled ? "disabled" : ""}>
+        <input type="checkbox" data-v3-toggle="${plan.id}" ${plan.done ? "checked" : ""} ${plan.canceled ? "disabled" : ""} aria-label="Mark ${at} as done">
         <span class="sr-only-label">Mark done</span>
       </label>
       <div class="tp-avatar" aria-hidden="true">${subject.icon}</div>
@@ -3619,28 +3621,33 @@ function plannerSessionCard(plan) {
           ${duration ? `<span class="tp-chip tp-chip-duration">&#9201; ${escapeHtml(duration)}</span>` : ""}
 
         </div>
-        <h4 class="tp-topic">${escapeHtml(plan.topic || plan.task || "Untitled session")}</h4>
+        <h4 class="tp-topic">${title}</h4>
         ${plan.notes ? `<p class="tp-notes">${escapeHtml(String(plan.notes).split("\n")[0])}</p>` : ""}
         ${plannerTimingBlock(plan, now)}
         ${plannerBreakBlock(plan, now)}
-        <div class="tp-actions">
-          <button type="button" data-v3-login="${plan.id}" ${plan.canceled || plan.done ? "disabled" : ""}>${plan.login ? "Update In" : "Log In"}</button>
-          <button type="button" data-v3-logoff="${plan.id}" ${plan.canceled || !plan.login || activeBreak ? "disabled" : ""}>${plan.logoff ? "Update Out" : "Log Off"}</button>
-          <button type="button" data-v3-break="${plan.id}" ${plan.canceled || plan.done || !plan.login || activeBreak ? "disabled" : ""}>Break</button>
-          ${activeBreak ? `<button type="button" class="tp-end-break" data-v3-end-break="${plan.id}">End Break &amp; Resume Mission</button>` : ""}
-          <button type="button" class="secondary-button" data-v3-cancel-session="${plan.id}" ${plan.canceled ? "disabled" : ""}>Cancel</button>
-          <button type="button" class="secondary-button" data-v3-edit="${plan.id}">Edit</button>
-          <button type="button" class="secondary-button" data-v3-copy="${plan.id}">Copy to tomorrow</button>
-          <span class="tp-reorder" aria-label="Reorder session">
-            <button type="button" class="text-button" data-v3-move="${plan.id}" data-v3-dir="-1" title="Move earlier">&#8593;</button>
-            <button type="button" class="text-button" data-v3-move="${plan.id}" data-v3-dir="1" title="Move later">&#8595;</button>
-          </span>
-          <button type="button" class="text-button danger-button" data-v3-delete="${plan.id}">Remove</button>
-
+        <div class="tp-actions" role="group" aria-label="Actions for ${at}">
+          <button type="button" data-v3-login="${plan.id}" ${plan.canceled || plan.done ? "disabled" : ""} aria-label="${plan.login ? "Update start time" : "Log in"} for ${at}">${plan.login ? "Update In" : "Log In"}</button>
+          <button type="button" data-v3-logoff="${plan.id}" ${plan.canceled || !plan.login || activeBreak ? "disabled" : ""} aria-label="${plan.logoff ? "Update end time" : "Log off"} for ${at}">${plan.logoff ? "Update Out" : "Log Off"}</button>
+          <button type="button" data-v3-break="${plan.id}" ${plan.canceled || plan.done || !plan.login || activeBreak ? "disabled" : ""} aria-label="Start a break in ${at}">Break</button>
+          ${activeBreak ? `<button type="button" class="tp-end-break" data-v3-end-break="${plan.id}" aria-label="End break and resume ${at}">End Break &amp; Resume Mission</button>` : ""}
+          <details class="tp-card-more">
+            <summary aria-label="More actions for ${at}">More</summary>
+            <div class="tp-card-more-row">
+              <button type="button" class="secondary-button" data-v3-edit="${plan.id}" aria-label="Edit ${at}">Edit</button>
+              <button type="button" class="secondary-button" data-v3-copy="${plan.id}" aria-label="Copy ${at} to tomorrow">Copy to tomorrow</button>
+              <span class="tp-reorder" role="group" aria-label="Reorder ${at}">
+                <button type="button" class="text-button" data-v3-move="${plan.id}" data-v3-dir="-1" title="Move earlier" aria-label="Move ${at} earlier">&#8593;</button>
+                <button type="button" class="text-button" data-v3-move="${plan.id}" data-v3-dir="1" title="Move later" aria-label="Move ${at} later">&#8595;</button>
+              </span>
+              <button type="button" class="secondary-button" data-v3-cancel-session="${plan.id}" ${plan.canceled ? "disabled" : ""} aria-label="Cancel ${at}">Cancel</button>
+              <button type="button" class="text-button danger-button" data-v3-delete="${plan.id}" aria-label="Remove ${at}">Remove</button>
+            </div>
+          </details>
         </div>
       </div>
     </article>`;
 }
+
 
 function renderTimetable() {
   const host = plannerHost();
