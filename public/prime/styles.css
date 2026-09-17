@@ -4233,3 +4233,56 @@ body.dark-mode .tp-capacity { color: #fbbf24; }
   color: inherit;
 }
 .tp-reorder button:hover { background: rgba(148, 163, 184, 0.18); }
+
+/* ===== Planner accessibility & usability (v60) ===== */
+.planner-v3 .tp-actions { align-items: center; gap: 0.45rem; }
+.planner-v3 .tp-actions > button,
+.planner-v3 .tp-card-more summary,
+.planner-v3 .tp-card-more-row button {
+  min-height: 40px;
+  padding-inline: 0.85rem;
+}
+.tp-card-more {
+  display: inline-block;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+}
+.tp-card-more > summary {
+  cursor: pointer;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0 0.9rem;
+  min-height: 40px;
+  border-radius: 999px;
+}
+.tp-card-more > summary::-webkit-details-marker { display: none; }
+.tp-card-more > summary::after { content: " ▾"; opacity: 0.6; }
+.tp-card-more[open] > summary::after { content: " ▴"; }
+.tp-card-more[open] {
+  display: block;
+  border-radius: 14px;
+  padding-bottom: 0.5rem;
+  width: 100%;
+}
+.tp-card-more-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding: 0.35rem 0.6rem 0;
+}
+.planner-v3 :is(button, input, select, summary):focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+.planner-v3 button[disabled] { opacity: 0.45; cursor: not-allowed; }
+.planner-v3 .tp-reorder button { width: 40px; height: 40px; font-size: 1rem; }
+@media (max-width: 640px) {
+  .planner-v3 .tp-actions > button,
+  .planner-v3 .tp-card-more,
+  .planner-v3 .tp-card-more > summary { width: 100%; justify-content: center; }
+  .planner-v3 .tp-card-more-row button { flex: 1 1 45%; }
+}
