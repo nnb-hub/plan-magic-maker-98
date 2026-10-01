@@ -10,7 +10,7 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" type="image/png" href="assets/icon-192.png" />
     <link rel="apple-touch-icon" href="assets/icon-192.png" />
-    <link rel="stylesheet" href="styles.css?v=60" />
+    <link rel="stylesheet" href="styles.css?v=61" />
   </head>
   <body>
     <aside class="mission-sidebar" aria-label="Dashboard navigation">
@@ -142,6 +142,10 @@
           <span>Daily Completion</span>
           <strong id="dashboardDailyCompletion">0%</strong>
         </article>
+        <article class="daily-score-tile">
+          <span>Today's Score</span>
+          <strong id="dailyScoreCard">No missions planned yet</strong>
+        </article>
         <article>
           <span>Current Focus</span>
           <strong id="dashboardCurrentFocus">Ready</strong>
@@ -163,6 +167,19 @@
           </div>
           <div id="weeklyReportGrid" class="weekly-report-grid"></div>
           <p id="weeklyReportAction" class="weekly-report-action"></p>
+        </article>
+      </section>
+
+      <section class="mission-status-grid" aria-label="Revision due radar">
+        <article class="panel radar-card">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Revision Radar</p>
+              <h2>Due for Revision</h2>
+            </div>
+            <a class="text-button" href="#revision">Open planner</a>
+          </div>
+          <div id="revisionRadar" class="mini-list"></div>
         </article>
       </section>
 
@@ -615,6 +632,6 @@
 
     <div id="hqModal" class="hq-modal" hidden></div>
 
-    <script type="module" src="app.js?v=60"></script>
+    <script type="module" src="app.js?v=61"></script>
   </body>
 </html>

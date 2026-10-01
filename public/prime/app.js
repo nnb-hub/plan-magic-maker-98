@@ -827,6 +827,7 @@ function render() {
   renderMocks();
   renderRankPredictor();
   renderRevisions();
+  renderRevisionRadar();
   renderTimetable();
   renderMotivation();
   renderSyllabus();
@@ -905,6 +906,17 @@ function renderStats() {
   if (els.dashboardBacklogCount) els.dashboardBacklogCount.textContent = backlogCount;
   if (els.backlogCoveredBtn) els.backlogCoveredBtn.disabled = backlogCount <= 0;
   if (els.dashboardDailyCompletion) els.dashboardDailyCompletion.textContent = `${dailyCompletion}%`;
+  const scoreCard = document.querySelector("#dailyScoreCard");
+  if (scoreCard) {
+    const doneMissions = todayPlans.filter((plan) => plan.done).length;
+    const exec = plannerExecutionStats(todayPlans);
+    const studyLabel = todayStudyMs >= 3600000
+      ? `${Math.floor(todayStudyMs / 3600000)}h ${Math.round((todayStudyMs % 3600000) / 60000)}m`.replace(" 0m", "")
+      : `${Math.round(todayStudyMs / 60000)}m`;
+    scoreCard.textContent = todayPlans.length
+      ? `${doneMissions}/${todayPlans.length} done \u00B7 ${exec.punctuality}% on time \u00B7 ${studyLabel} study`
+      : "No missions planned yet";
+  }
   if (els.dashboardCurrentFocus) els.dashboardCurrentFocus.textContent = activePlan ? `${activePlan.activityType || "Study"} · ${activePlan.subject}` : "Set mission";
   if (els.dashboardMainSubject) els.dashboardMainSubject.textContent = activePlan?.topic || activePlan?.task || "Not set";
   if (els.missionDay) els.missionDay.textContent = missionDay;
@@ -1510,6 +1522,26 @@ function getCollegePath(rank, category, route, eligible) {
 
 function formatRank(rank) {
   return new Intl.NumberFormat("en-IN").format(Math.max(1, Math.round(rank)));
+}
+
+/* Revision due radar: dashboard list of revisions due today or overdue. */
+function renderRevisionRadar() {
+  const host = document.querySelector("#revisionRadar");
+  if (!host) return;
+  const today = todayKey();
+  const due = (state.revisions || [])
+    .filter((revision) => (revision.date || today) <= today)
+    .slice(0, 5);
+  host.innerHTML = due.length
+    ? due.map((revision) => `
+      <div class="revision-item radar-item">
+        <div class="revision-main">
+          <strong>${escapeHtml(revision.text)}</strong>
+          <small>${revision.stage ? `Stage ${escapeHtml(revision.stage)} - ` : ""}Due ${escapeHtml(revision.date)}</small>
+        </div>
+        <button class="secondary-button" type="button" data-radar-done="${revision.id}">Done</button>
+      </div>`).join("")
+    : `<p class="radar-empty">Nothing due for revision today. The queue is clear.</p>`;
 }
 
 function renderRevisions() {
@@ -2688,6 +2720,18 @@ els.revisionList.addEventListener("click", (event) => {
   }
 
   render();
+});
+
+/* Radar "Done" reuses the same completion flow as the revision list. */
+document.addEventListener("click", (event) => {
+  const radarId = event.target.dataset?.radarDone;
+  if (!radarId) return;
+  const completedRevision = state.revisions.find((revision) => revision.id === radarId);
+  state.revisions = state.revisions.filter((revision) => revision.id !== radarId);
+  state.timetable = state.timetable.map((plan) => plan.revisionId === radarId && !plan.canceled ? { ...plan, done: true } : plan);
+  if (completedRevision) scheduleNextRevision(completedRevision);
+  saveState();
+  render();
   scheduleStudyNotifications();
 });
 
@@ -3542,6 +3586,31 @@ function plannerCapacityHint(date) {
   return `Planned load is ${Math.floor(over / 60) ? `${Math.floor(over / 60)}h ` : ""}${over % 60 ? `${over % 60}m` : ""} over today's ${targetHours}h productive target. Consider trimming or moving a session.`;
 }
 
+/* Today glance strip: live mission, next mission (one-tap start), minutes left. */
+function plannerGlanceMarkup(selectedDate) {
+  if (plannerRange !== "day" || selectedDate !== todayKey()) return "";
+  const todayPlans = plannerPlansForDate(selectedDate).filter((plan) => !plan.canceled);
+  if (!todayPlans.length) return "";
+  const live = todayPlans.find((plan) => plannerStateKey(plan) === "active" || plannerStateKey(plan) === "paused");
+  const next = todayPlans.find((plan) => !plan.done && !plan.login && plan !== live);
+  const remaining = todayPlans
+    .filter((plan) => !plan.done)
+    .reduce((total, plan) => total + plannerPlannedMinutes(plan), 0);
+  const remLabel = remaining >= 60
+    ? `${Math.floor(remaining / 60)}h ${remaining % 60 ? `${remaining % 60}m` : ""}`.trim()
+    : `${remaining}m`;
+  return `<div class="tp-glance" role="status">
+    ${live
+      ? `<span class="tp-glance-live"><i></i>Live: <strong>${escapeHtml(live.subject)}</strong> ${escapeHtml(live.topic || live.task || "")}</span>`
+      : `<span class="tp-glance-idle">No mission live right now</span>`}
+    ${next
+      ? `<span class="tp-glance-next">Next: <strong>${escapeHtml(next.time)} ${escapeHtml(next.subject)}</strong></span>
+         <button type="button" class="primary-button tp-glance-start" data-v3-login="${next.id}" aria-label="Start next mission, ${escapeHtml(next.subject)} at ${escapeHtml(next.time)}">Start next mission</button>`
+      : `<span class="tp-glance-next">All missions logged or done</span>`}
+    <span class="tp-glance-left">${remLabel} planned left today</span>
+  </div>`;
+}
+
 /* Clash auto-fix: nudge the later session of each overlap to the first
    free slot after the earlier session ends. User confirms; nothing silent. */
 function plannerSuggestClashFixes(date) {
@@ -3694,6 +3763,8 @@ function renderTimetable() {
         <button type="button" class="${plannerRange === "grid" ? "active" : ""}" data-v3-range="grid">Week grid</button>
       </div>
     </header>
+
+    ${plannerGlanceMarkup(selectedDate)}
 
     <div class="tp-stats">
       <div class="tp-stat"><span>Sessions</span><strong>${plans.length}</strong></div>
@@ -5408,9 +5479,17 @@ function hqReviewMarkup() {
       <div><dt>Revision items today</dt><dd>${revisionsDone}</dd></div>
       <div><dt>Backlog</dt><dd>${backlog}</dd></div>
       <div><dt>Attendance</dt><dd>${hqEscape(hqAttendanceMeta(day?.attendance).label)}</dd></div>
-      <div><dt>Primary objective</dt><dd>${hqEscape(day?.objective || "Not defined")}</dd></div>
-    </dl>
-    ${hqIntelMarkup(intel)}
+        <div><dt>Primary objective</dt><dd>${hqEscape(day?.objective || "Not defined")}</dd></div>
+      </dl>
+      <section class="hq-recap">
+        <h4 class="hq-h4">MORNING BRIEFING vs OUTCOME</h4>
+        <ul class="hq-recap-list">
+          <li><span>Productive target</span><strong>${target ? `${target}h planned` : "Not set"} → ${hqMinutesLabel(executed * 60)} executed</strong></li>
+          <li><span>Primary objective</span><strong>${hqEscape(day?.objective || "Not defined")} → ${done >= Math.ceil(plans.length / 2) && plans.length ? "Largely met" : done ? "Partially met" : "Not met"}</strong></li>
+          <li><span>Attendance</span><strong>${hqEscape(hqAttendanceMeta(day?.attendance).label)}</strong></li>
+        </ul>
+      </section>
+      ${hqIntelMarkup(intel)}
     ${hqDecisionDeskMarkup(intel)}
     <section class="hq-tomorrow">
       <h4 class="hq-h4">TOMORROW'S COMMAND</h4>
