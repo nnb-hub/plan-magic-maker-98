@@ -905,6 +905,17 @@ function renderStats() {
   if (els.dashboardBacklogCount) els.dashboardBacklogCount.textContent = backlogCount;
   if (els.backlogCoveredBtn) els.backlogCoveredBtn.disabled = backlogCount <= 0;
   if (els.dashboardDailyCompletion) els.dashboardDailyCompletion.textContent = `${dailyCompletion}%`;
+  const scoreCard = document.querySelector("#dailyScoreCard");
+  if (scoreCard) {
+    const doneMissions = todayPlans.filter((plan) => plan.done).length;
+    const exec = plannerExecutionStats(todayPlans);
+    const studyLabel = todayStudyMs >= 3600000
+      ? `${Math.floor(todayStudyMs / 3600000)}h ${Math.round((todayStudyMs % 3600000) / 60000)}m`.replace(" 0m", "")
+      : `${Math.round(todayStudyMs / 60000)}m`;
+    scoreCard.textContent = todayPlans.length
+      ? `${doneMissions}/${todayPlans.length} done \u00B7 ${exec.punctuality}% on time \u00B7 ${studyLabel} study`
+      : "No missions planned yet";
+  }
   if (els.dashboardCurrentFocus) els.dashboardCurrentFocus.textContent = activePlan ? `${activePlan.activityType || "Study"} · ${activePlan.subject}` : "Set mission";
   if (els.dashboardMainSubject) els.dashboardMainSubject.textContent = activePlan?.topic || activePlan?.task || "Not set";
   if (els.missionDay) els.missionDay.textContent = missionDay;
