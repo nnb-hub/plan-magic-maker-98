@@ -1524,6 +1524,26 @@ function formatRank(rank) {
   return new Intl.NumberFormat("en-IN").format(Math.max(1, Math.round(rank)));
 }
 
+/* Revision due radar: dashboard list of revisions due today or overdue. */
+function renderRevisionRadar() {
+  const host = document.querySelector("#revisionRadar");
+  if (!host) return;
+  const today = todayKey();
+  const due = (state.revisions || [])
+    .filter((revision) => (revision.date || today) <= today)
+    .slice(0, 5);
+  host.innerHTML = due.length
+    ? due.map((revision) => `
+      <div class="revision-item radar-item">
+        <div class="revision-main">
+          <strong>${escapeHtml(revision.text)}</strong>
+          <small>${revision.stage ? `Stage ${escapeHtml(revision.stage)} - ` : ""}Due ${escapeHtml(revision.date)}</small>
+        </div>
+        <button class="secondary-button" type="button" data-radar-done="${revision.id}">Done</button>
+      </div>`).join("")
+    : `<p class="radar-empty">Nothing due for revision today. The queue is clear.</p>`;
+}
+
 function renderRevisions() {
   const revisions = [...state.revisions].sort((a, b) => a.date.localeCompare(b.date));
   els.revisionList.innerHTML = revisions.length
