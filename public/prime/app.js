@@ -3542,6 +3542,31 @@ function plannerCapacityHint(date) {
   return `Planned load is ${Math.floor(over / 60) ? `${Math.floor(over / 60)}h ` : ""}${over % 60 ? `${over % 60}m` : ""} over today's ${targetHours}h productive target. Consider trimming or moving a session.`;
 }
 
+/* Today glance strip: live mission, next mission (one-tap start), minutes left. */
+function plannerGlanceMarkup(selectedDate) {
+  if (plannerRange !== "day" || selectedDate !== todayKey()) return "";
+  const todayPlans = plannerPlansForDate(selectedDate).filter((plan) => !plan.canceled);
+  if (!todayPlans.length) return "";
+  const live = todayPlans.find((plan) => plannerStateKey(plan) === "active" || plannerStateKey(plan) === "paused");
+  const next = todayPlans.find((plan) => !plan.done && !plan.login && plan !== live);
+  const remaining = todayPlans
+    .filter((plan) => !plan.done)
+    .reduce((total, plan) => total + plannerPlannedMinutes(plan), 0);
+  const remLabel = remaining >= 60
+    ? `${Math.floor(remaining / 60)}h ${remaining % 60 ? `${remaining % 60}m` : ""}`.trim()
+    : `${remaining}m`;
+  return `<div class="tp-glance" role="status">
+    ${live
+      ? `<span class="tp-glance-live"><i></i>Live: <strong>${escapeHtml(live.subject)}</strong> ${escapeHtml(live.topic || live.task || "")}</span>`
+      : `<span class="tp-glance-idle">No mission live right now</span>`}
+    ${next
+      ? `<span class="tp-glance-next">Next: <strong>${escapeHtml(next.time)} ${escapeHtml(next.subject)}</strong></span>
+         <button type="button" class="primary-button tp-glance-start" data-v3-login="${next.id}" aria-label="Start next mission, ${escapeHtml(next.subject)} at ${escapeHtml(next.time)}">Start next mission</button>`
+      : `<span class="tp-glance-next">All missions logged or done</span>`}
+    <span class="tp-glance-left">${remLabel} planned left today</span>
+  </div>`;
+}
+
 /* Clash auto-fix: nudge the later session of each overlap to the first
    free slot after the earlier session ends. User confirms; nothing silent. */
 function plannerSuggestClashFixes(date) {
