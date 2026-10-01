@@ -5479,9 +5479,17 @@ function hqReviewMarkup() {
       <div><dt>Revision items today</dt><dd>${revisionsDone}</dd></div>
       <div><dt>Backlog</dt><dd>${backlog}</dd></div>
       <div><dt>Attendance</dt><dd>${hqEscape(hqAttendanceMeta(day?.attendance).label)}</dd></div>
-      <div><dt>Primary objective</dt><dd>${hqEscape(day?.objective || "Not defined")}</dd></div>
-    </dl>
-    ${hqIntelMarkup(intel)}
+        <div><dt>Primary objective</dt><dd>${hqEscape(day?.objective || "Not defined")}</dd></div>
+      </dl>
+      <section class="hq-recap">
+        <h4 class="hq-h4">MORNING BRIEFING vs OUTCOME</h4>
+        <ul class="hq-recap-list">
+          <li><span>Productive target</span><strong>${target ? `${target}h planned` : "Not set"} → ${hqMinutesLabel(executed * 60)} executed</strong></li>
+          <li><span>Primary objective</span><strong>${hqEscape(day?.objective || "Not defined")} → ${done >= Math.ceil(plans.length / 2) && plans.length ? "Largely met" : done ? "Partially met" : "Not met"}</strong></li>
+          <li><span>Attendance</span><strong>${hqEscape(hqAttendanceMeta(day?.attendance).label)}</strong></li>
+        </ul>
+      </section>
+      ${hqIntelMarkup(intel)}
     ${hqDecisionDeskMarkup(intel)}
     <section class="hq-tomorrow">
       <h4 class="hq-h4">TOMORROW'S COMMAND</h4>
