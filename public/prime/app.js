@@ -2720,6 +2720,18 @@ els.revisionList.addEventListener("click", (event) => {
   }
 
   render();
+});
+
+/* Radar "Done" reuses the same completion flow as the revision list. */
+document.addEventListener("click", (event) => {
+  const radarId = event.target.dataset?.radarDone;
+  if (!radarId) return;
+  const completedRevision = state.revisions.find((revision) => revision.id === radarId);
+  state.revisions = state.revisions.filter((revision) => revision.id !== radarId);
+  state.timetable = state.timetable.map((plan) => plan.revisionId === radarId && !plan.canceled ? { ...plan, done: true } : plan);
+  if (completedRevision) scheduleNextRevision(completedRevision);
+  saveState();
+  render();
   scheduleStudyNotifications();
 });
 
