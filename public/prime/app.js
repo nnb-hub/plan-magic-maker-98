@@ -827,6 +827,7 @@ function render() {
   renderMocks();
   renderRankPredictor();
   renderRevisions();
+  renderRevisionRadar();
   renderTimetable();
   renderMotivation();
   renderSyllabus();
