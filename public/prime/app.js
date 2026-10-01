@@ -3720,6 +3720,8 @@ function renderTimetable() {
       </div>
     </header>
 
+    ${plannerGlanceMarkup(selectedDate)}
+
     <div class="tp-stats">
       <div class="tp-stat"><span>Sessions</span><strong>${plans.length}</strong></div>
       <div class="tp-stat"><span>Completed</span><strong>${doneCount}</strong></div>
