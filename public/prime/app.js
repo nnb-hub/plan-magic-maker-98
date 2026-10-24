@@ -3236,6 +3236,7 @@ let plannerBound = false;
 let plannerRange = "day"; // "day" | "week" | "grid"
 let plannerFilter = "all"; // all | pending | done
 let plannerError = "";
+let plannerAiProposal = null;
 
 const PLANNER_SUBJECTS = {
   Physics: { icon: "&#9883;", key: "physics" },
@@ -3777,6 +3778,8 @@ function renderTimetable() {
       </div>
     </div>
 
+    ${plannerAiBuilderMarkup(selectedDate)}
+
     <details class="tp-more">
       <summary>Execution stats</summary>
       <div class="tp-exec" aria-label="Execution analytics">
@@ -3880,6 +3883,11 @@ function renderTimetable() {
   plannerBound = true;
 
   host.addEventListener("submit", (event) => {
+    if (event.target.matches("[data-v3-ai-form]")) {
+      event.preventDefault();
+      plannerGenerateWithAi(event.target);
+      return;
+    }
     if (!event.target.matches("[data-v3-form]")) return;
     event.preventDefault();
     plannerSaveFromForm();
@@ -3889,6 +3897,8 @@ function renderTimetable() {
     const button = event.target.closest("button");
     if (!button || !host.contains(button)) return;
 
+    if (button.dataset.v3AiApply !== undefined) { plannerApplyAiProposal(); return; }
+    if (button.dataset.v3AiDiscard !== undefined) { plannerAiProposal = null; renderTimetable(); return; }
     if (button.dataset.v3Range) { plannerRange = button.dataset.v3Range; renderTimetable(); return; }
     if (button.dataset.v3Filter) { plannerFilter = button.dataset.v3Filter; renderTimetable(); return; }
     if (button.dataset.v3Step) {
