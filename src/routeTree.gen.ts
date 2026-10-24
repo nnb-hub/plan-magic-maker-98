@@ -10,33 +10,43 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiPrimeAiTimetableRouteImport } from './routes/api/prime/ai-timetable'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPrimeAiTimetableRoute = ApiPrimeAiTimetableRouteImport.update({
+  id: '/api/prime/ai-timetable',
+  path: '/api/prime/ai-timetable',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/prime/ai-timetable': typeof ApiPrimeAiTimetableRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/prime/ai-timetable': typeof ApiPrimeAiTimetableRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/prime/ai-timetable': typeof ApiPrimeAiTimetableRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/api/prime/ai-timetable'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/api/prime/ai-timetable'
+  id: '__root__' | '/' | '/api/prime/ai-timetable'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiPrimeAiTimetableRoute: typeof ApiPrimeAiTimetableRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +58,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/prime/ai-timetable': {
+      id: '/api/prime/ai-timetable'
+      path: '/api/prime/ai-timetable'
+      fullPath: '/api/prime/ai-timetable'
+      preLoaderRoute: typeof ApiPrimeAiTimetableRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiPrimeAiTimetableRoute: ApiPrimeAiTimetableRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
