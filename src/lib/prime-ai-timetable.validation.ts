@@ -48,15 +48,15 @@ export const aiTimetableRequestSchema = z.object({
 export type AiTimetableRequest = z.infer<typeof aiTimetableRequestSchema>;
 
 export const aiTimetableOutputSchema = z.object({
-  summary: z.string().max(500),
+  summary: z.string(),
   sessions: z.array(z.object({
     date: z.string(),
     time: z.string(),
     subject: z.enum(["Physics", "Chemistry", "Botany", "Zoology", "Revision"]),
-    topic: z.string().max(160),
+    topic: z.string(),
     activityType: z.enum(["Study", "Question Practice", "Mock Test"]),
-    plannedMinutes: z.number().min(1).max(240),
-    revisionId: z.string().max(80).nullable(),
+    plannedMinutes: z.number(),
+    revisionId: z.string().nullable(),
   }).strict()).max(80),
 }).strict();
 
