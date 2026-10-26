@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => {
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+});
 const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 
 function dayNumber(value: string) {
@@ -117,7 +120,8 @@ export function filterSafeAiSessions(output: AiTimetableOutput, request: AiTimet
     const nextDailyTotal = (dailyMinutes.get(session.date) || 0) + minutes;
 
     if (
-      !validDate || !validTime || !insideWindow || !afterNow || !validRevision || !topic ||
+      !validDate || !validTime || !insideWindow || !afterNow || !validRevision ||
+      Boolean(revision?.alreadyScheduled) || !topic ||
       !allowedDurations.has(minutes) || duplicate || conflict ||
       nextDailyTotal > request.dailyHours * 60
     ) {

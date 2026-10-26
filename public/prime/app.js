@@ -3635,13 +3635,13 @@ function plannerAiBuilderMarkup(selectedDate) {
     <summary>Build a balanced timetable with AI</summary>
     <p class="tp-ai-intro">Plan around your deadline, free hours, existing sessions and revisions due soon. Nothing is added until you review it.</p>
     <form class="tp-ai-form" data-v3-ai-form>
-      <label class="tp-ai-goals">Study goals<textarea data-v3-ai-goals rows="3" maxlength="1200" placeholder="One goal per line · e.g. Finish rotational motion; practise 40 MCQs" required>${escapeHtml(goals)}</textarea></label>
+      <label class="tp-ai-goals">Study goals<textarea name="goals" data-v3-ai-goals rows="3" maxlength="1200" placeholder="One goal per line · e.g. Finish rotational motion; practise 40 MCQs" required>${escapeHtml(goals)}</textarea></label>
       <div class="tp-ai-fields">
-        <label>Plan from<input type="date" data-v3-ai-start value="${escapeHtml(plannerAiFormDraft?.startDate || (selectedDate > today ? selectedDate : today))}" required></label>
-        <label>Deadline<input type="date" data-v3-ai-deadline value="${escapeHtml(endDate)}" required></label>
-        <label>Study hours per day<input type="number" data-v3-ai-hours min="1" max="12" step="0.5" value="${escapeHtml(String(dailyHours))}" required></label>
-        <label>Available from<input type="time" data-v3-ai-day-start value="${escapeHtml(dayStart)}" required></label>
-        <label>Available until<input type="time" data-v3-ai-day-end value="${escapeHtml(dayEnd)}" required></label>
+        <label>Plan from<input name="startDate" type="date" data-v3-ai-start value="${escapeHtml(plannerAiFormDraft?.startDate || (selectedDate > today ? selectedDate : today))}" required></label>
+        <label>Deadline<input name="deadline" type="date" data-v3-ai-deadline value="${escapeHtml(endDate)}" required></label>
+        <label>Study hours per day<input name="dailyHours" type="number" data-v3-ai-hours min="1" max="12" step="0.5" value="${escapeHtml(String(dailyHours))}" required></label>
+        <label>Available from<input name="dayStart" type="time" data-v3-ai-day-start value="${escapeHtml(dayStart)}" required></label>
+        <label>Available until<input name="dayEnd" type="time" data-v3-ai-day-end value="${escapeHtml(dayEnd)}" required></label>
       </div>
       <div class="tp-ai-actions"><button type="submit" class="primary-button" ${plannerAiBusy ? "disabled" : ""}>${plannerAiBusy ? "Building your plan…" : "Generate timetable"}</button>${!currentUser ? `<span class="tp-ai-note">Sign in to Google first. <button type="button" class="text-button" data-v3-ai-signin>Sign in</button></span>` : ""}</div>
       ${plannerAiError ? `<p class="tp-error" role="alert">${escapeHtml(plannerAiError)}</p>` : ""}
@@ -3742,6 +3742,7 @@ function plannerApplyAiProposal() {
   if (!plannerAiProposal?.sessions?.length) return;
   let added = 0;
   let skipped = 0;
+  const addedDates = [];
   for (const session of plannerAiProposal.sessions) {
     const duplicate = state.timetable.some((plan) =>
       plan.date === session.date && !plan.archived && !plan.canceled && (
@@ -3780,14 +3781,15 @@ function plannerApplyAiProposal() {
       status: "planned",
       archived: false,
     });
+    addedDates.push(session.date);
     added += 1;
   }
   plannerAiProposal = null;
   plannerAiError = added ? `Added ${added} session${added === 1 ? "" : "s"} to your timetable${skipped ? `; ${skipped} skipped because they now duplicate or overlap existing sessions` : ""}.` : "Nothing was added because every suggested session now duplicates or overlaps your timetable.";
   if (added) {
-    const earliest = state.timetable.filter((plan) => !plan.archived).sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))[0];
     const host = plannerHost();
-    if (earliest && host) host.dataset.plannerDate = earliest.date;
+    const earliestAddedDate = addedDates.sort()[0];
+    if (earliestAddedDate && host) host.dataset.plannerDate = earliestAddedDate;
     saveState();
     render();
   } else {
