@@ -14,7 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      prime_ai_gateway_status: {
+        Row: {
+          blocked_at: string | null
+          id: number
+          provider_blocked: boolean
+          safe_message: string
+        }
+        Insert: {
+          blocked_at?: string | null
+          id: number
+          provider_blocked?: boolean
+          safe_message?: string
+        }
+        Update: {
+          blocked_at?: string | null
+          id?: number
+          provider_blocked?: boolean
+          safe_message?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

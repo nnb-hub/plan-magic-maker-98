@@ -3237,6 +3237,9 @@ let plannerRange = "day"; // "day" | "week" | "grid"
 let plannerFilter = "all"; // all | pending | done
 let plannerError = "";
 let plannerAiProposal = null;
+let plannerAiFormDraft = null;
+let plannerAiBusy = false;
+let plannerAiError = "";
 
 const PLANNER_SUBJECTS = {
   Physics: { icon: "&#9883;", key: "physics" },
@@ -3612,6 +3615,186 @@ function plannerGlanceMarkup(selectedDate) {
   </div>`;
 }
 
+function plannerAiBuilderMarkup(selectedDate) {
+  const today = todayKey();
+  const endDate = plannerAiFormDraft?.deadline || plannerShiftDate(selectedDate > today ? selectedDate : today, 6);
+  const dayStart = plannerAiFormDraft?.dayStart || "06:00";
+  const dayEnd = plannerAiFormDraft?.dayEnd || "22:00";
+  const dailyHours = plannerAiFormDraft?.dailyHours || "6";
+  const goals = plannerAiFormDraft?.goals ?? state.goals.filter((goal) => !goal.done).slice(0, 5).map((goal) => goal.text).join("\n");
+  const proposal = plannerAiProposal;
+  const proposalMarkup = proposal
+    ? `<div class="tp-ai-preview" aria-live="polite">
+        <div class="tp-ai-preview-head"><div><strong>Review your proposed timetable</strong><p>${escapeHtml(proposal.summary || "A balanced plan is ready to review.")}</p></div><span>${proposal.sessions.length} session${proposal.sessions.length === 1 ? "" : "s"}</span></div>
+        ${proposal.excludedCount ? `<p class="tp-ai-note">${proposal.excludedCount} suggested session${proposal.excludedCount === 1 ? " was" : "s were"} left out because of an overlap, duplicate, or time limit.</p>` : ""}
+        ${proposal.sessions.length ? `<ul class="tp-ai-session-list">${proposal.sessions.map((session) => `<li><time>${escapeHtml(new Date(`${session.date}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }))} · ${escapeHtml(session.time)}</time><span class="tp-ai-tag${session.revisionId ? " is-revision" : ""}">${session.revisionId ? "Revision first" : escapeHtml(session.subject)}</span><strong>${escapeHtml(session.topic)}</strong><small>${session.plannedMinutes} min · ${escapeHtml(session.activityType)}</small></li>`).join("")}</ul>` : `<p class="tp-ai-note">No new sessions fit without overlapping your existing timetable.</p>`}
+        <div class="tp-ai-actions"><button type="button" class="primary-button" data-v3-ai-apply ${proposal.sessions.length ? "" : "disabled"}>Add these sessions</button><button type="button" class="secondary-button" data-v3-ai-discard>Discard</button></div>
+      </div>`
+    : "";
+  return `<details class="tp-more tp-ai-builder" ${plannerAiFormDraft || plannerAiError || plannerAiBusy || proposal ? "open" : ""}>
+    <summary>Build a balanced timetable with AI</summary>
+    <p class="tp-ai-intro">Plan around your deadline, free hours, existing sessions and revisions due soon. Nothing is added until you review it.</p>
+    <form class="tp-ai-form" data-v3-ai-form>
+      <label class="tp-ai-goals">Study goals<textarea data-v3-ai-goals rows="3" maxlength="1200" placeholder="One goal per line · e.g. Finish rotational motion; practise 40 MCQs" required>${escapeHtml(goals)}</textarea></label>
+      <div class="tp-ai-fields">
+        <label>Plan from<input type="date" data-v3-ai-start value="${escapeHtml(plannerAiFormDraft?.startDate || (selectedDate > today ? selectedDate : today))}" required></label>
+        <label>Deadline<input type="date" data-v3-ai-deadline value="${escapeHtml(endDate)}" required></label>
+        <label>Study hours per day<input type="number" data-v3-ai-hours min="1" max="12" step="0.5" value="${escapeHtml(String(dailyHours))}" required></label>
+        <label>Available from<input type="time" data-v3-ai-day-start value="${escapeHtml(dayStart)}" required></label>
+        <label>Available until<input type="time" data-v3-ai-day-end value="${escapeHtml(dayEnd)}" required></label>
+      </div>
+      <div class="tp-ai-actions"><button type="submit" class="primary-button" ${plannerAiBusy ? "disabled" : ""}>${plannerAiBusy ? "Building your plan…" : "Generate timetable"}</button>${!currentUser ? `<span class="tp-ai-note">Sign in to Google first. <button type="button" class="text-button" data-v3-ai-signin>Sign in</button></span>` : ""}</div>
+      ${plannerAiError ? `<p class="tp-error" role="alert">${escapeHtml(plannerAiError)}</p>` : ""}
+      ${plannerAiBusy ? `<p class="tp-ai-note" role="status">Checking your revisions and available study time…</p>` : ""}
+    </form>
+    ${proposalMarkup}
+  </details>`;
+}
+
+function plannerAiReadForm(form) {
+  const formData = new FormData(form);
+  const get = (name, fallback = "") => String(formData.get(name) || fallback).trim();
+  return {
+    goals: get("goals"),
+    startDate: get("startDate"),
+    deadline: get("deadline"),
+    dailyHours: get("dailyHours", "6"),
+    dayStart: get("dayStart", "06:00"),
+    dayEnd: get("dayEnd", "22:00"),
+  };
+}
+
+async function plannerGenerateWithAi(form) {
+  plannerAiFormDraft = plannerAiReadForm(form);
+  plannerAiError = "";
+  plannerAiProposal = null;
+  const requestUser = auth?.currentUser || currentUser;
+  if (!requestUser) {
+    plannerAiError = "Sign in to Google before generating your timetable.";
+    renderTimetable();
+    return;
+  }
+  const goals = plannerAiFormDraft.goals.split("\n").map((goal) => goal.trim()).filter(Boolean);
+  if (!goals.length || goals.length > 24) {
+    plannerAiError = "Enter between 1 and 24 goals, one per line.";
+    renderTimetable();
+    return;
+  }
+  plannerAiBusy = true;
+  renderTimetable();
+  try {
+    const token = await requestUser.getIdToken();
+    const startDate = plannerAiFormDraft.startDate;
+    const deadline = plannerAiFormDraft.deadline;
+    const revisions = (state.revisions || [])
+      .filter((revision) => revision.date >= startDate && revision.date <= deadline)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .slice(0, 40)
+      .map((revision) => ({
+        id: String(revision.id).slice(0, 80),
+        text: String(revision.text || "").slice(0, 120),
+        date: revision.date,
+        stage: String(revision.stage || "").slice(0, 40),
+        alreadyScheduled: state.timetable.some((plan) => plan.date === revision.date && plan.revisionId === revision.id && !plan.archived && !plan.canceled),
+      }));
+    const existingSessions = state.timetable
+      .filter((plan) => plan.date >= startDate && plan.date <= deadline && !plan.archived && !plan.canceled && !plan.done)
+      .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
+      .slice(0, 120)
+      .map((plan) => ({
+        date: plan.date,
+        time: plan.time,
+        subject: String(plan.subject || "Study").slice(0, 24),
+        topic: String(plan.topic || plan.task || "Study session").slice(0, 160),
+        plannedMinutes: Math.min(240, plannerPlannedMinutes(plan)),
+        revisionId: plan.revisionId ? String(plan.revisionId).slice(0, 80) : null,
+      }));
+    const response = await fetch("/api/prime/ai-timetable", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        ...plannerAiFormDraft,
+        dailyHours: Number(plannerAiFormDraft.dailyHours),
+        nowTime: currentTimeValue(),
+        revisions,
+        existingSessions,
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(typeof result.error === "string" ? result.error : "The timetable could not be generated. Try again.");
+    plannerAiProposal = {
+      summary: String(result.summary || "").slice(0, 500),
+      sessions: Array.isArray(result.sessions) ? result.sessions : [],
+      excludedCount: Number(result.excludedCount) || 0,
+    };
+    plannerAiError = plannerAiProposal.sessions.length
+      ? ""
+      : "No new sessions fit around your existing timetable. Try changing the date range or available hours.";
+  } catch (error) {
+    plannerAiError = error instanceof Error ? error.message : "The timetable could not be generated. Try again.";
+  } finally {
+    plannerAiBusy = false;
+    renderTimetable();
+  }
+}
+
+function plannerApplyAiProposal() {
+  if (!plannerAiProposal?.sessions?.length) return;
+  let added = 0;
+  let skipped = 0;
+  for (const session of plannerAiProposal.sessions) {
+    const duplicate = state.timetable.some((plan) =>
+      plan.date === session.date && !plan.archived && !plan.canceled && (
+        (session.revisionId && plan.revisionId === session.revisionId) ||
+        (String(plan.topic || plan.task || "").trim().toLowerCase() === String(session.topic).trim().toLowerCase() && plan.subject === session.subject)
+      ),
+    );
+    const start = timeToMinutes(session.time);
+    const end = start + session.plannedMinutes;
+    const conflict = state.timetable.some((plan) =>
+      plan.date === session.date && !plan.archived && !plan.canceled && start < timeToMinutes(plan.time) + plannerPlannedMinutes(plan) && end > timeToMinutes(plan.time),
+    );
+    if (duplicate || conflict) { skipped += 1; continue; }
+    state.timetable.push({
+      id: crypto.randomUUID ? crypto.randomUUID() : `ai-plan-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      date: session.date,
+      time: session.time,
+      startTime: session.time,
+      activityType: session.activityType,
+      subject: session.subject,
+      topic: session.topic,
+      task: session.topic,
+      plannedMinutes: session.plannedMinutes,
+      revisionId: session.revisionId || undefined,
+      done: false,
+      login: "",
+      logoff: "",
+      loginAt: "",
+      logoffAt: "",
+      canceled: false,
+      cancelReason: "",
+      breaks: [],
+      sessionLogs: [],
+      endTime: "",
+      totalDuration: 0,
+      status: "planned",
+      archived: false,
+    });
+    added += 1;
+  }
+  plannerAiProposal = null;
+  plannerAiError = added ? `Added ${added} session${added === 1 ? "" : "s"} to your timetable${skipped ? `; ${skipped} skipped because they now duplicate or overlap existing sessions` : ""}.` : "Nothing was added because every suggested session now duplicates or overlaps your timetable.";
+  if (added) {
+    const earliest = state.timetable.filter((plan) => !plan.archived).sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))[0];
+    const host = plannerHost();
+    if (earliest && host) host.dataset.plannerDate = earliest.date;
+    saveState();
+    render();
+  } else {
+    renderTimetable();
+  }
+}
+
 /* Clash auto-fix: nudge the later session of each overlap to the first
    free slot after the earlier session ends. User confirms; nothing silent. */
 function plannerSuggestClashFixes(date) {
@@ -3897,6 +4080,7 @@ function renderTimetable() {
     const button = event.target.closest("button");
     if (!button || !host.contains(button)) return;
 
+    if (button.dataset.v3AiSignin !== undefined) { document.querySelector("#googleSignInBtn")?.click(); return; }
     if (button.dataset.v3AiApply !== undefined) { plannerApplyAiProposal(); return; }
     if (button.dataset.v3AiDiscard !== undefined) { plannerAiProposal = null; renderTimetable(); return; }
     if (button.dataset.v3Range) { plannerRange = button.dataset.v3Range; renderTimetable(); return; }
