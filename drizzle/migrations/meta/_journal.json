@@ -1,5 +1,13 @@
 {
   "version": "7",
   "dialect": "postgresql",
-  "entries": []
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1792982620379,
+      "tag": "0000_prime_ai_gateway_status",
+      "breakpoints": true
+    }
+  ]
 }

@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => {
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+});
 const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 
 function dayNumber(value: string) {
@@ -54,8 +57,8 @@ export const aiTimetableOutputSchema = z.object({
     activityType: z.enum(["Study", "Question Practice", "Mock Test"]),
     plannedMinutes: z.number(),
     revisionId: z.string().nullable(),
-  })),
-});
+  }).strict()).max(80),
+}).strict();
 
 export type AiTimetableOutput = z.infer<typeof aiTimetableOutputSchema>;
 
@@ -81,6 +84,12 @@ export function filterSafeAiSessions(output: AiTimetableOutput, request: AiTimet
   const accepted: AiTimetableOutput["sessions"] = [];
   let excludedCount = 0;
   const allowedDurations = new Set([30, 45, 60, 90, 120]);
+  const dateIsValid = (value: string) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const parsed = new Date(`${value}T00:00:00Z`);
+    return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+  };
+  const timeIsValid = (value: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
   const ordered = [...output.sessions].sort((a, b) => {
     const revisionA = a.revisionId ? revisions.get(a.revisionId) : undefined;
     const revisionB = b.revisionId ? revisions.get(b.revisionId) : undefined;
@@ -95,7 +104,8 @@ export function filterSafeAiSessions(output: AiTimetableOutput, request: AiTimet
     const minutes = session.plannedMinutes;
     const start = timeToMinutes(session.time);
     const end = start + minutes;
-    const validDate = session.date >= request.startDate && session.date <= request.deadline;
+    const validDate = dateIsValid(session.date) && session.date >= request.startDate && session.date <= request.deadline;
+    const validTime = timeIsValid(session.time);
     const insideWindow = start >= timeToMinutes(request.dayStart) && end <= timeToMinutes(request.dayEnd);
     const afterNow = session.date !== request.startDate || start >= timeToMinutes(request.nowTime);
     const validRevision = session.revisionId === null || Boolean(revision && session.subject === "Revision");
@@ -110,7 +120,8 @@ export function filterSafeAiSessions(output: AiTimetableOutput, request: AiTimet
     const nextDailyTotal = (dailyMinutes.get(session.date) || 0) + minutes;
 
     if (
-      !validDate || !insideWindow || !afterNow || !validRevision || !topic ||
+      !validDate || !validTime || !insideWindow || !afterNow || !validRevision ||
+      Boolean(revision?.alreadyScheduled) || !topic ||
       !allowedDurations.has(minutes) || duplicate || conflict ||
       nextDailyTotal > request.dailyHours * 60
     ) {

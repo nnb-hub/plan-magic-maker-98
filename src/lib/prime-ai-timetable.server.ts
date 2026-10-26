@@ -52,14 +52,18 @@ function takeGenerationSlot(userId: string) {
 }
 
 function safeGatewayError(error: unknown) {
-  const candidate = error as { statusCode?: unknown; status?: unknown; message?: unknown; responseBody?: unknown };
-  const statusValue = Number(candidate?.statusCode ?? candidate?.status);
+  const candidate = error as { statusCode?: unknown; status?: unknown; message?: unknown; responseBody?: unknown; response?: { status?: unknown } };
+  const statusValue = Number(candidate?.statusCode ?? candidate?.status ?? candidate?.response?.status);
   const status = Number.isInteger(statusValue) && statusValue >= 400 && statusValue <= 599 ? statusValue : 502;
   let message = typeof candidate?.message === "string" ? candidate.message : "The timetable could not be generated.";
+  let providerDenied = status === 403;
   if (typeof candidate?.responseBody === "string") {
     try {
-      const parsed = JSON.parse(candidate.responseBody) as { message?: unknown };
+      const parsed = JSON.parse(candidate.responseBody) as { message?: unknown; type?: unknown; error?: { type?: unknown; message?: unknown } };
       if (typeof parsed.message === "string") message = parsed.message;
+      else if (typeof parsed.error?.message === "string") message = parsed.error.message;
+      const errorType = String(parsed.type || parsed.error?.type || "");
+      if (errorType.startsWith("provider_") || errorType === "permission_error" || errorType.startsWith("model_")) providerDenied = true;
     } catch {
       // Keep the SDK's safe message when the body is not JSON.
     }
@@ -69,7 +73,7 @@ function safeGatewayError(error: unknown) {
   if (status === 403) message = message.slice(0, 500) || "AI timetable generation is not currently permitted.";
   if (status === 429) message = "AI generation is busy right now. Please wait a little before trying again.";
   if (status >= 500) message = "The timetable service is temporarily unavailable. Please try again later.";
-  return { status, message: message.slice(0, 500) };
+  return { status, message: message.slice(0, 500), providerDenied };
 }
 
 function buildInstructions() {
@@ -85,6 +89,20 @@ export async function generatePrimeTimetable(request: Request) {
   const userId = await verifyFirebaseUser(request);
   if (!userId) return responseError("Sign in to generate an AI timetable.", 401);
   if (!takeGenerationSlot(userId)) return responseError("You have reached the short-term generation limit. Please wait before trying again.", 429);
+
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: gatewayStatus, error: statusReadError } = await supabaseAdmin
+    .from("prime_ai_gateway_status")
+    .select("provider_blocked, safe_message")
+    .eq("id", 1)
+    .maybeSingle();
+  if (statusReadError) {
+    console.error("Unable to check persistent AI access status", statusReadError.message);
+    return responseError("AI timetable generation is temporarily unavailable.", 503);
+  }
+  if (gatewayStatus?.provider_blocked) {
+    return responseError(gatewayStatus.safe_message || "AI access is blocked until the workspace provider issue is resolved.", 403);
+  }
 
   const contentLength = Number(request.headers.get("content-length") || 0);
   if (contentLength > 24_000) return responseError("The timetable request is too large.", 413);
@@ -165,6 +183,15 @@ export async function generatePrimeTimetable(request: Request) {
     }
     const failure = safeGatewayError(error);
     console.error("AI timetable generation failed", { status: failure.status, message: failure.message });
+    if (failure.status === 403 && failure.providerDenied) {
+      const { error: persistError } = await supabaseAdmin.from("prime_ai_gateway_status").upsert({
+        id: 1,
+        provider_blocked: true,
+        safe_message: failure.message,
+        blocked_at: new Date().toISOString(),
+      });
+      if (persistError) console.error("Unable to persist AI provider denial", persistError.message);
+    }
     return responseError(failure.message, failure.status);
   }
 }

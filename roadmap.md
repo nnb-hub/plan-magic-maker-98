@@ -1,0 +1,3 @@
+- [ ] Add the approved AI timetable builder with a review-before-apply flow.
+- [ ] Diagnose and fix the current timetable planner issue; simplify planner presentation without removing existing workflows.
+- [ ] Run validation tests, inspect current build signals, and verify the planner and AI endpoint as far as available authentication permits.
