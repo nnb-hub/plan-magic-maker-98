@@ -153,7 +153,9 @@ export async function generatePrimeTimetable(request: Request) {
 
   try {
     const result = streamText({
-      model: openai.responses("openai/gpt-6-astra"),
+      // The OpenAI adapter and AI SDK currently resolve compatible provider
+      // patch versions independently; their runtime language-model contract matches.
+      model: openai.responses("openai/gpt-6-astra") as unknown as Parameters<typeof streamText>[0]["model"],
       instructions: buildInstructions(),
       prompt,
       output: Output.object({ schema: aiTimetableOutputSchema }),

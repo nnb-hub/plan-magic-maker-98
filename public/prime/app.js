@@ -3698,7 +3698,7 @@ async function plannerGenerateWithAi(form) {
         alreadyScheduled: state.timetable.some((plan) => plan.date === revision.date && plan.revisionId === revision.id && !plan.archived && !plan.canceled),
       }));
     const existingSessions = state.timetable
-      .filter((plan) => plan.date >= startDate && plan.date <= deadline && !plan.archived && !plan.canceled && !plan.done)
+      .filter((plan) => plan.date >= startDate && plan.date <= deadline && !plan.archived && !plan.canceled)
       .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
       .slice(0, 120)
       .map((plan) => ({
