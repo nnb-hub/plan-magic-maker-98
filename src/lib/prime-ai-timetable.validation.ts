@@ -57,7 +57,7 @@ export const aiTimetableOutputSchema = z.object({
     activityType: z.enum(["Study", "Question Practice", "Mock Test"]),
     plannedMinutes: z.number(),
     revisionId: z.string().nullable(),
-  }).strict()).max(80),
+  }).strict()),
 }).strict();
 
 export type AiTimetableOutput = z.infer<typeof aiTimetableOutputSchema>;
@@ -97,7 +97,7 @@ export function filterSafeAiSessions(output: AiTimetableOutput, request: AiTimet
     if (revisionA) return -1;
     if (revisionB) return 1;
     return a.date.localeCompare(b.date) || a.time.localeCompare(b.time);
-  });
+  }).slice(0, 80);
 
   for (const session of ordered) {
     const revision = session.revisionId ? revisions.get(session.revisionId) : undefined;
