@@ -1,4 +1,4 @@
-const CACHE_NAME = "project-prime-invictus-ignis-v61";
+const CACHE_NAME = "project-prime-invictus-ignis-v62";
 const APP_SHELL = [
   "./",
   "./index.html",

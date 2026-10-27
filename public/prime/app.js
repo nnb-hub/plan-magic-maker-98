@@ -3266,8 +3266,9 @@ function plannerSelectedDate() {
 }
 
 function plannerShiftDate(date, days) {
-  const day = new Date(`${date}T00:00:00`);
-  day.setDate(day.getDate() + days);
+  const day = new Date(`${date}T00:00:00Z`);
+  if (!Number.isFinite(day.getTime())) return date;
+  day.setUTCDate(day.getUTCDate() + days);
   return day.toISOString().slice(0, 10);
 }
 
@@ -3284,7 +3285,7 @@ function plannerDatesInView(startDate) {
 function plannerPlansForDate(date) {
   return state.timetable
     .filter((plan) => plan.date === date && !plan.archived)
-    .filter((plan) => (plannerFilter === "pending" ? !plan.done && !plan.canceled : plannerFilter === "done" ? plan.done : true))
+    .filter((plan) => (plannerFilter === "pending" ? !plan.done && !plan.canceled : plannerFilter === "done" ? plan.done && !plan.canceled : true))
     .sort((a, b) => String(a.time).localeCompare(String(b.time)));
 }
 
@@ -3698,7 +3699,7 @@ async function plannerGenerateWithAi(form) {
         alreadyScheduled: state.timetable.some((plan) => plan.date === revision.date && plan.revisionId === revision.id && !plan.archived && !plan.canceled),
       }));
     const existingSessions = state.timetable
-      .filter((plan) => plan.date >= startDate && plan.date <= deadline && !plan.archived && !plan.canceled && !plan.done)
+      .filter((plan) => plan.date >= startDate && plan.date <= deadline && !plan.archived && !plan.canceled)
       .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
       .slice(0, 120)
       .map((plan) => ({
@@ -4289,6 +4290,19 @@ function plannerSaveFromForm() {
     plannerError = "Add a date, a start time and a topic before saving.";
     renderTimetable();
     host.querySelector("[data-v3-topic]")?.focus();
+    return;
+  }
+  const parsedDate = new Date(`${data.date}T00:00:00Z`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data.date) || !Number.isFinite(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== data.date) {
+    plannerError = "Choose a valid date for this session.";
+    renderTimetable();
+    host.querySelector("[data-v3-date]")?.focus();
+    return;
+  }
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(data.time) || !PLANNER_DURATIONS.includes(data.plannedMinutes)) {
+    plannerError = "Choose a valid start time and session duration.";
+    renderTimetable();
+    host.querySelector("[data-v3-time]")?.focus();
     return;
   }
   plannerError = "";

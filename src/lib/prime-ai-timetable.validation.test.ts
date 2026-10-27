@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { aiTimetableRequestSchema } from "./prime-ai-timetable.validation";
+import { aiTimetableRequestSchema, filterSafeAiSessions } from "./prime-ai-timetable.validation";
 
 const validRequest = {
   goals: "Finish rotational motion and revise chemical bonding",
@@ -29,5 +29,33 @@ describe("AI timetable request rules", () => {
 
   it("rejects an availability window that ends before it starts", () => {
     assert.equal(aiTimetableRequestSchema.safeParse({ ...validRequest, dayStart: "18:00", dayEnd: "08:00" }).success, false);
+  });
+});
+
+describe("AI timetable proposal safety", () => {
+  it("keeps a valid revision session and links it to the existing revision", () => {
+    const request = aiTimetableRequestSchema.parse({
+      ...validRequest,
+      revisions: [{ id: "rev-1", text: "Chemical bonding", date: "2026-10-22", stage: "D2", alreadyScheduled: false }],
+    });
+    const result = filterSafeAiSessions({
+      summary: "Revision first",
+      sessions: [{ date: "2026-10-22", time: "07:00", subject: "Revision", topic: "ignored", activityType: "Study", plannedMinutes: 45, revisionId: "rev-1" }],
+    }, request);
+    assert.equal(result.sessions.length, 1);
+    assert.equal(result.sessions[0]?.topic, "D2: Chemical bonding");
+  });
+
+  it("excludes generated sessions that overlap an existing timetable entry", () => {
+    const request = aiTimetableRequestSchema.parse({
+      ...validRequest,
+      existingSessions: [{ date: "2026-10-22", time: "07:00", subject: "Physics", topic: "Mechanics", plannedMinutes: 60, revisionId: null }],
+    });
+    const result = filterSafeAiSessions({
+      summary: "Study plan",
+      sessions: [{ date: "2026-10-22", time: "07:30", subject: "Chemistry", topic: "Chemical bonding", activityType: "Study", plannedMinutes: 45, revisionId: null }],
+    }, request);
+    assert.equal(result.sessions.length, 0);
+    assert.equal(result.excludedCount, 1);
   });
 });

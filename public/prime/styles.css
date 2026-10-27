@@ -4320,3 +4320,60 @@ body.dark-mode .tp-capacity { color: #fbbf24; }
   background: color-mix(in oklab, var(--muted) 40%, transparent); font-size: 0.92rem;
 }
 .hq-recap-list li span { color: var(--muted-foreground); }
+
+/* AI timetable proposal stays inside the existing planner and applies only after review. */
+.planner-v3 .tp-ai-builder {
+  margin: 0.75rem 0 1rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.planner-v3 .tp-ai-builder > summary {
+  padding: 0.85rem 1rem;
+  color: var(--green-dark);
+  font-weight: 800;
+  cursor: pointer;
+}
+.planner-v3 .tp-ai-intro,
+.planner-v3 .tp-ai-form,
+.planner-v3 .tp-ai-preview { margin-inline: 1rem; }
+.planner-v3 .tp-ai-intro { margin-top: 0; color: var(--muted); font-size: 0.88rem; }
+.planner-v3 .tp-ai-form { display: grid; gap: 0.8rem; padding-bottom: 1rem; }
+.planner-v3 .tp-ai-form label { display: grid; gap: 0.35rem; color: var(--muted); font-size: 0.83rem; font-weight: 700; }
+.planner-v3 .tp-ai-form :is(input, textarea) {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.55rem 0.65rem;
+  color: var(--ink);
+  background: var(--panel);
+}
+.planner-v3 .tp-ai-form textarea { min-height: 82px; resize: vertical; }
+.planner-v3 .tp-ai-fields { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 0.65rem; }
+.planner-v3 .tp-ai-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem; }
+.planner-v3 .tp-ai-actions > :is(button, .primary-button, .secondary-button) { min-height: 40px; }
+.planner-v3 .tp-ai-note { margin: 0.25rem 0; color: var(--muted); font-size: 0.84rem; }
+.planner-v3 .tp-ai-preview { margin-bottom: 1rem; padding: 0.85rem; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); }
+.planner-v3 .tp-ai-preview-head { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 0.5rem; }
+.planner-v3 .tp-ai-preview-head strong { color: var(--ink); }
+.planner-v3 .tp-ai-preview-head p { margin: 0.3rem 0 0; color: var(--muted); font-size: 0.88rem; }
+.planner-v3 .tp-ai-preview-head > span { color: var(--green-dark); font-weight: 800; }
+.planner-v3 .tp-ai-session-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.45rem; margin: 0.8rem 0; padding: 0; list-style: none; }
+.planner-v3 .tp-ai-session-list li { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 0.35rem 0.5rem; padding: 0.6rem; border: 1px solid var(--line); border-radius: 6px; }
+.planner-v3 .tp-ai-session-list time { color: var(--muted); font-size: 0.75rem; }
+.planner-v3 .tp-ai-session-list strong { min-width: 0; overflow-wrap: anywhere; color: var(--ink); font-size: 0.84rem; }
+.planner-v3 .tp-ai-session-list small { grid-column: 2 / -1; color: var(--muted); }
+.planner-v3 .tp-ai-tag { width: fit-content; color: var(--blue); font-size: 0.72rem; font-weight: 800; }
+.planner-v3 .tp-ai-tag.is-revision { color: var(--revision); }
+.planner-v3 .tp-ai-builder :is(button, input, textarea, summary):focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+@media (max-width: 760px) {
+  .planner-v3 .tp-ai-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .planner-v3 .tp-ai-session-list { grid-template-columns: 1fr; }
+}
+@media (max-width: 420px) {
+  .planner-v3 .tp-ai-fields { grid-template-columns: 1fr; }
+  .planner-v3 .tp-ai-session-list li { grid-template-columns: 1fr auto; }
+  .planner-v3 .tp-ai-session-list time { grid-column: 1 / -1; }
+  .planner-v3 .tp-ai-session-list small { grid-column: 1 / -1; }
+}
