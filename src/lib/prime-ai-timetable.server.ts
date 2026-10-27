@@ -56,14 +56,18 @@ function safeGatewayError(error: unknown) {
   const statusValue = Number(candidate?.statusCode ?? candidate?.status ?? candidate?.response?.status);
   const status = Number.isInteger(statusValue) && statusValue >= 400 && statusValue <= 599 ? statusValue : 502;
   let message = typeof candidate?.message === "string" ? candidate.message : "The timetable could not be generated.";
-  let providerDenied = status === 403;
+  let providerDenied = false;
   if (typeof candidate?.responseBody === "string") {
     try {
       const parsed = JSON.parse(candidate.responseBody) as { message?: unknown; type?: unknown; error?: { type?: unknown; message?: unknown } };
       if (typeof parsed.message === "string") message = parsed.message;
       else if (typeof parsed.error?.message === "string") message = parsed.error.message;
       const errorType = String(parsed.type || parsed.error?.type || "");
-      if (errorType.startsWith("provider_") || errorType === "permission_error" || errorType.startsWith("model_")) providerDenied = true;
+      providerDenied = status === 403 && (
+        errorType.startsWith("provider_") ||
+        errorType === "permission_error" ||
+        errorType === "model_vendor_not_enabled"
+      );
     } catch {
       // Keep the SDK's safe message when the body is not JSON.
     }
